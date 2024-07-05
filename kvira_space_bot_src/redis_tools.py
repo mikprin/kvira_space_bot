@@ -6,15 +6,15 @@ from pydantic import BaseModel
 
 
 class TelegramUser(BaseModel):
-    user_id: int
+    user_id: str
     username: str
     lang: Lang
 
 
-def init_redis(db=0):
+def init_redis(host='kvira_redis', db=0):
     """Initialize the Redis database.
     """
-    redis = Redis(host='localhost', port=6379, db=db)
+    redis = Redis(host=host, port=6379, db=db)
     return redis
 
 
@@ -24,13 +24,16 @@ def add_user_to_redis(redis: Redis, user: TelegramUser) -> None:
     redis.set(user.user_id, user.json())
 
 
-def get_user_from_redis(redis: Redis, userid: int) -> TelegramUser:
+def get_user_from_redis(redis: Redis, userid: str) -> TelegramUser:
     """Get a user from the Redis database.
     """
+    # Check if the user exists in the database
+    if not redis.exists(userid):
+        return None
     return TelegramUser.parse_raw(redis.get(userid))
 
 
-def update_user_lang_in_redis(redis: Redis, userid: int, lang: Lang) -> None:
+def update_user_lang_in_redis(redis: Redis, userid: str, lang: Lang) -> None:
     """Update the user's language in the Redis database.
     """
     user = get_user_from_redis(redis, userid)

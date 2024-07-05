@@ -61,24 +61,23 @@ class TelegramApiBot:
         logging.info(f"Inited bot with token!")
         self.admin_ids_users = admin_ids_users
         logging.info(f"Admins: {self.admin_ids_users}")
-        
-        self._redis = init_redis()
+    
     def run(self):
         asyncio.run(self._run())
 
     @dp.message(CommandStart())
-    async def command_start_handler(self, message: Message) -> None:
+    async def command_start_handler(message: Message) -> None:
         """This handler receives messages with `/start` command
         """
-
-        user = get_user_from_redis(self._redis, message.from_user.id)
+        redis = init_redis()
+        user = get_user_from_redis(redis, message.from_user.id)
 
         if user is None:
 
-            add_user_to_redis(TelegramUser(
-                message.from_user.id,
-                message.from_user.username,
-                Lang.Rus  # TODO: add language selection
+            add_user_to_redis(redis=redis, user=TelegramUser(
+                user_id=str(message.from_user.id),
+                username=str(message.from_user.username),
+                lang=Lang.Rus  # TODO: add language selection
             ))
 
             await message.answer(f"Username {message.from_user.username} added to the Reddis")
@@ -91,7 +90,7 @@ class TelegramApiBot:
 
             if days_left > 0:
                 hello_msg += "\n" \
-                    + get_message_for_user('acc_days', user.lang) % days_left
+                    + get_message_for_user('acc_days', user.lang).format(days_left)
             else:
                 hello_msg += "\n" + get_message_for_user('no_pass', user.lang)
 
