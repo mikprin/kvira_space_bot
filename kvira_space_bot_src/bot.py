@@ -7,9 +7,9 @@ from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart
 from aiogram.types import Message
 from aiogram.utils.markdown import hbold
+from aiogram.contrib.middlewares.logging import LoggingMiddleware
 
-from kvira_space_bot_src.spreadsheets.api import get_days_left
-
+from kvira_space_bot_src.spreadsheets.api import get_days_left, get_message_for_user
 
 dp = Dispatcher()  # TODO: put inside the class?
 
