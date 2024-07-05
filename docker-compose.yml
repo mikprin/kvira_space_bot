@@ -11,7 +11,10 @@ services:
     # .env file
     env_file:
       - .env
-  
+    # Create volume from file with env variable called GOOGLE_KEY_FILE_PATH
+    volumes:
+      - ./${GOOGLE_KEY_FILE_PATH}:/${GOOGLE_KEY_FILE_PATH}
+
   # kvira_redis:
   #   container_name: kvira_redis
   #   image: redis
