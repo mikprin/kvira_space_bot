@@ -56,7 +56,7 @@ class TelegramApiBot:
 
             hello_msg = get_message_for_user('hello_msg', user.lang)
 
-            days_left = get_days_left(user.username)
+            days_left = get_days_left(user.username) 
 
             if days_left > 0:
                 hello_msg += "\n" \
