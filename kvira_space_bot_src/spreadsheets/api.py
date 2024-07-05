@@ -1,15 +1,13 @@
 import os
 from datetime import datetime
 from enum import Enum
-
+import pandas as pd
 import gspread
 
 
 GOOGLE_KEY_FILE_PATH = os.environ['GOOGLE_KEY_FILE_PATH']
 GOOGLE_DOC_ID = os.environ['GOOGLE_DOC_ID']
 
-gc = gspread.service_account(filename=GOOGLE_KEY_FILE_PATH)
-sheet = gc.open_by_key(GOOGLE_DOC_ID).sheet1
 
 
 class UserPassType(Enum):
@@ -35,14 +33,29 @@ class Lang(Enum):
     Rus = 2
 
 
+def get_gc():
+    gc = gspread.service_account(filename=GOOGLE_KEY_FILE_PATH)
+    return gc
+
+def get_users_sheet():
+    gc = get_gc()
+    sheet = gc.open_by_key(GOOGLE_DOC_ID).sheet1
+
+def get_user_data_pandas() -> pd.DataFrame:
+    """Get all user data from the spreadsheet.
+    """
+    sheet = get_users_sheet()
+    return pd.DataFrame(sheet.get_all_records())
+
 def check_if_user_exists(username: str) -> bool:
+    sheet = get_users_sheet()
     column_data = sheet.col_values(1)[1:]
     return username in column_data
-
 
 def punch_user_day(username: str):
     """Punch the user for the current day.
     """
+    sheet = get_users_sheet()
     # find row number of the user
     row_number = sheet.col_values(1).index(username) + 1
     # get all punches
@@ -56,6 +69,7 @@ def punch_user_day(username: str):
 def get_days_left(username: str) -> int:
     """Days left for the user to use the pass.
     """
+    sheet = get_users_sheet()
     # find row number of the user
     row_number = sheet.col_values(1).index(username) + 1
     # get all punches
@@ -65,6 +79,16 @@ def get_days_left(username: str) -> int:
 
     return UserPassType.get_days_count(pass_type) - len(punches)
 
+def get_expation_date(username: str) -> str:
+    """Get the expiration date of the pass for the user.
+    """
+    sheet = get_users_sheet()
+    # find row number of the user
+    row_number = sheet.col_values(1).index(username) + 1
+    
+    column_number = 4
+    expation_date = sheet.cell(row_number, column_number).value
+    return expation_date
 
 def get_message_for_user(str_id: str, lang: Lang) -> str:
     """Get message for the user from the spreadsheet prepared for the given language.

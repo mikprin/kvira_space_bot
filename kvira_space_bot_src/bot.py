@@ -20,7 +20,8 @@ from aiogram.filters import Command
 from kvira_space_bot_src.spreadsheets.api import (
     get_days_left,
     get_message_for_user,
-    Lang
+    Lang,
+    get_expation_date
 )
 from kvira_space_bot_src.redis_tools import (
     init_redis,
@@ -51,9 +52,11 @@ class IsAdmin(BaseFilter):
             await message.answer("You are not privileged to use this command.")
         return is_admin
 
-
+def get_keyboard(user_id):
+    """Get inline keyboard"""
+    return None
 class TelegramApiBot:
-    
+
     def __init__(self):
         
         self._token = getenv("TELEGRAM_API_KEY")
@@ -90,7 +93,9 @@ class TelegramApiBot:
 
             if days_left > 0:
                 hello_msg += "\n" \
-                    + get_message_for_user('acc_days', user.lang).format(days_left)
+                    + get_message_for_user('days_left', user.lang).format(days_left)
+                    
+                hello_msg += "\n" + get_message_for_user('exp_date', user.lang).format(get_expation_date(user.username))
             else:
                 hello_msg += "\n" + get_message_for_user('no_pass', user.lang)
 
@@ -114,9 +119,7 @@ class TelegramApiBot:
         self._bot = Bot(self._token, parse_mode=ParseMode.HTML)
         await dp.start_polling(self._bot)
 
-    def get_keyboard(user_id):
-        """Get inline keyboard"""
-        return None
+
 
     @dp.message(Command("check_if_admin"), IsAdmin(admin_ids_users))
     async def admin_command_handler(message: Message):
