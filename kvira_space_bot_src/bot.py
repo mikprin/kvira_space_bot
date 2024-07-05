@@ -17,7 +17,18 @@ from aiogram import BaseMiddleware
 from aiogram.filters import BaseFilter
 from aiogram.filters import Command
 
-from kvira_space_bot_src.spreadsheets.api import get_days_left, get_message_for_user
+from kvira_space_bot_src.spreadsheets.api import (
+    get_days_left,
+    get_message_for_user,
+    Lang
+)
+from kvira_space_bot_src.redis_tools import (
+    init_redis,
+    get_user_from_redis,
+    add_user_to_redis,
+    TelegramUser
+)
+
 
 dp = Dispatcher()  # TODO: put inside the class?
 load_dotenv()
@@ -46,24 +57,45 @@ class TelegramApiBot:
     def __init__(self):
         
         self._token = getenv("TELEGRAM_API_KEY")
+        
         logging.info(f"Inited bot with token!")
         self.admin_ids_users = admin_ids_users
         logging.info(f"Admins: {self.admin_ids_users}")
         
+        self._redis = init_redis()
     def run(self):
         asyncio.run(self._run())
 
     @dp.message(CommandStart())
-    async def command_start_handler(message: Message) -> None:
+    async def command_start_handler(self, message: Message) -> None:
+        """This handler receives messages with `/start` command
         """
-        This handler receives messages with `/start` command
-        """
-        # Most event objects have aliases for API methods that can be called in events' context
-        # For example if you want to answer to incoming message you can use `message.answer(...)` alias
-        # and the target chat will be passed to :ref:`aiogram.methods.send_message.SendMessage`
-        # method automatically or call API method directly via
-        # Bot instance: `bot.send_message(chat_id=message.chat.id, ...)`
-        await message.answer(f"Hello, {hbold(message.from_user.full_name)}!")
+
+        user = get_user_from_redis(self._redis, message.from_user.id)
+
+        if user is None:
+
+            add_user_to_redis(TelegramUser(
+                message.from_user.id,
+                message.from_user.username,
+                Lang.Rus  # TODO: add language selection
+            ))
+
+            await message.answer(f"Username {message.from_user.username} added to the Reddis")
+
+        else:  # user is not None
+
+            hello_msg = get_message_for_user('hello_msg', user.lang)
+
+            days_left = get_days_left(user.username) 
+
+            if days_left > 0:
+                hello_msg += "\n" \
+                    + get_message_for_user('acc_days', user.lang) % days_left
+            else:
+                hello_msg += "\n" + get_message_for_user('no_pass', user.lang)
+
+            await message.answer(hello_msg)
 
     # @dp.message()
     # async def echo_handler(message: types.Message) -> None:
