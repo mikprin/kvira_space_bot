@@ -1,5 +1,13 @@
 from kvira_space_bot_src.spreadsheets.api import Lang
 from redis import Redis
+from pydantic import BaseModel
+
+
+
+class TelegramUser(BaseModel):
+    user_id: str
+    username: str
+    lang: Lang
 
 def init_redis():
     """Initialize the Redis database.
@@ -7,16 +15,20 @@ def init_redis():
     redis = Redis(host='localhost', port=6379, db=0)
     return redis
 
-def get_user_lang(redis: Redis, user_id: str) -> Lang:
-    """Get user language from the Redis database.
-    Check
+def add_user_to_redis(redis: Redis, user: TelegramUser) -> None:
+    """Add a user to the Redis database.
     """
-    return Lang(int(redis.get(f"{user_id}_lang")))
+    pass
 
-def set_user_lang(redis: Redis, user_id: str, lang: Lang):
-    """Set user language in the Redis database.
+def get_user_from_redis(redis: Redis, userid: str) -> TelegramUser:
+    """Get a user from the Redis database.
     """
-    redis.set(f"{user_id}_lang", lang.value)
+    pass
+
+def update_user_lang_in_redis(redis: Redis, userid: str, lang: Lang) -> None:
+    """Update the user's language in the Redis database.
+    """
+    pass
     
 def get_all_users(redis: Redis) -> list:
     """Get all user ids from the Redis database.
