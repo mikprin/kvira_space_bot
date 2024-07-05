@@ -24,6 +24,11 @@ class UserPassType(Enum):
                 return pass_type_enum.value[1]
 
 
+class Lang(Enum):
+    Eng = 3
+    Rus = 2
+
+
 def check_if_user_exists(username: str) -> bool:
     column_data = sheet.col_values(1)[1:]
     return username in column_data
@@ -49,3 +54,11 @@ def get_days_left(username: str) -> int:
     pass_type = sheet.cell(row_number, 2).value
 
     return UserPassType.get_days_count(pass_type) - len(punches)
+
+
+def get_message_for_user(str_id: str, lang: Lang) -> str:
+    sheet = gc.open_by_key(SPREADSHEET_ID).get_worksheet(1)
+    row_number = sheet.col_values(1).index(str_id) + 1
+    column_number = lang.value
+    msg = sheet.cell(row_number, column_number).value
+    return msg
