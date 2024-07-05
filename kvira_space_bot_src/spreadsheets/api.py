@@ -9,4 +9,3 @@ def punch_user_day(username: str):
 
 def get_days_left(username: str):
     pass
-
