@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.11-slim
 
 LABEL name="Kvira space bot" \
       version="1.0" \
@@ -19,4 +19,4 @@ RUN pip3 install -r requirements.txt
 
 COPY kvira_space_bot_src /kvira_space_bot_src
 
-CMD ["python3", "-m" "kvira_space_bot_src"]
+CMD ["python3", "-m", "kvira_space_bot_src"]
