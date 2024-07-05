@@ -9,8 +9,8 @@ services:
     networks:
       - bot_network
     # .env file
-    # env_file:
-    #   - .env
+    env_file:
+      - .env
   
   # kvira_redis:
   #   container_name: kvira_redis
