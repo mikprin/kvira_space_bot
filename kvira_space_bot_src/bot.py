@@ -39,6 +39,9 @@ from kvira_space_bot_src.redis_tools import (
     read_admin_chats_from_redis
 )
 
+from asyncio import Lock
+
+table_push_lock = Lock()
 
 buttons = {
     Lang.Rus.value: {
@@ -148,11 +151,7 @@ class TelegramApiBot:
     def run(self):
         asyncio.run(self._run())
 
-
-
-
     # User handler zone
-
     @dp.message(CommandStart())
     async def command_start_handler(message: Message) -> None:
         """This handler receives messages with `/start` command
@@ -218,7 +217,6 @@ class TelegramApiBot:
             )
             add_user_to_redis(redis=redis, user=user)
             logging.info(f"Username {message.from_user.username} added to the Reddis")
-        
         users_memberships: pd.DataFrame = get_user_data_pandas()
         membership = find_working_membership(user.username, users_memberships)
         if membership.row_id is None:
@@ -240,25 +238,32 @@ class TelegramApiBot:
             )
             add_user_to_redis(redis=redis, user=user)
             logging.info(f"Username {message.from_user.username} added to the Reddis")
-        
-        users_memberships: pd.DataFrame = get_user_data_pandas()
-        membership = find_working_membership(user.username, users_memberships)
-        if membership.row_id is None:
-            await message.answer(get_message_for_user('no_pass', user.lang), reply_markup=get_keyboard(user.user_id))
-        else:
-            # If last punch was today, do nothing
-            last_punch = process_punches_from_string(membership.membership_data['punches'])[-1]
-            if last_punch == datetime.now().strftime('%d.%m.%Y'):
-                await message.answer(get_message_for_user('already_punched', user.lang), reply_markup=get_keyboard(user.user_id))
-            ret_code = punch_user_day(membership.row_id)
-        if ret_code:
-            send_message_to_admins(f"User {user.username} punched the pass", bot=bot)
-            logging.info(f"User {user.username} punched the pass")
-            await message.answer(get_message_for_user('pass_punched', user.lang), reply_markup=get_keyboard(user.user_id))
-        else:
-            logging.error(f"Error while punching the pass for user {user.username}")
-            await message.answer(get_message_for_user('error_punching', user.lang), reply_markup=get_keyboard(user.user_id))
-
+        await table_push_lock.acquire()
+        try:
+            msg = None
+            users_memberships: pd.DataFrame = get_user_data_pandas()
+            membership = find_working_membership(user.username, users_memberships)
+            if membership.row_id is None:
+                msg = 'no_pass'
+            else:
+                # If last punch was today, do nothing
+                last_punch = process_punches_from_string(membership.membership_data['punches'])[-1]
+                today = datetime.now().strftime('%d.%m.%Y')
+                # logging.info(f"Last punch: {last_punch}, today: {today}, {last_punch == today}")
+                if last_punch == today:
+                    msg = 'already_punched'
+                else:
+                    ret_code = punch_user_day(membership.row_id)
+                    if ret_code:
+                        send_message_to_admins(f"User {user.username} punched the pass", bot=bot)
+                        logging.info(f"User {user.username} punched the pass")
+                        msg = 'pass_punched'
+                    else:
+                        logging.error(f"Error while punching the pass for user {user.username}")
+                        msg = "error_punching"
+        finally:
+            table_push_lock.release()
+        await message.answer(get_message_for_user(msg, user.lang), reply_markup=get_keyboard(user.user_id))
     async def _run(self):
         self._bot = bot
         await dp.start_polling(self._bot)
