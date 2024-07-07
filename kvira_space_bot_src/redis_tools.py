@@ -4,7 +4,8 @@ from kvira_space_bot_src.spreadsheets.api import Lang
 from redis import Redis
 from pydantic import BaseModel
 
-
+ALL_USERS_KEY_LIST = 'all_users_redis_key_list'
+ADMIN_CHATS_KEY = 'admin_chats_redis_key'
 class TelegramUser(BaseModel):
     user_id: str
     username: str
@@ -17,11 +18,22 @@ def init_redis(host='kvira_redis', db=0):
     redis = Redis(host=host, port=6379, db=db)
     return redis
 
+def add_admin_chat_to_redis(redis: Redis, chat_id: str) -> None:
+    """Adds this chat_id to the Redis database list of admin chats.
+    """
+    redis.sadd(ADMIN_CHATS_KEY, chat_id)
+    
+def read_admin_chats_from_redis(redis: Redis) -> List[str]:
+    """Reads the list of admin chats from the Redis database.
+    Decode each chat_id from bytes to string.
+    """
+    return [chat_id.decode('utf-8') for chat_id in redis.smembers(ADMIN_CHATS_KEY)]
 
 def add_user_to_redis(redis: Redis, user: TelegramUser) -> None:
     """Add a user to the Redis database.
     """
     redis.set(user.user_id, user.json())
+    redis.sadd(ALL_USERS_KEY_LIST, user.user_id)
 
 
 def get_user_from_redis(redis: Redis, userid: str) -> TelegramUser:

@@ -3,3 +3,4 @@ python-dotenv
 gspread==6.1.2
 redis==5.0.7
 pydantic==2.3
+pandas

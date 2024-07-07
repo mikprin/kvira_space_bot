@@ -4,8 +4,8 @@ services:
     container_name: kvira_bot_app
     # restart: always
     build: .
-    # depends_on:
-    #   - kvira_redis
+    depends_on:
+      - kvira_redis
     networks:
       - bot_network
     # .env file
