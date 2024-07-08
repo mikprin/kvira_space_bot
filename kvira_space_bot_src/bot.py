@@ -35,8 +35,9 @@ from kvira_space_bot_src.redis_tools import (
     get_user_from_redis,
     add_user_to_redis,
     TelegramUser,
-    add_admin_chat_to_redis,
-    read_admin_chats_from_redis
+    add_chat_to_redis_list,
+    read_chats_from_redis_list,
+    ADMIN_CHATS_KEY
 )
 
 from asyncio import Lock
@@ -56,9 +57,6 @@ buttons = {
     },
 }
 
-# Redis databases
-USER_DATA_DB = 0
-SERVICE_DATA_DB = 1
 
 dp = Dispatcher()  # TODO: put inside the class?
 token = getenv("TELEGRAM_API_KEY")
@@ -86,11 +84,8 @@ class IsAdmin(BaseFilter):
 
 def get_keyboard(user_id, redis: Redis | None=None):
     """Get inline keyboard"""
-    
-    if redis is None:
-        redis = init_redis(db=USER_DATA_DB)
-    
-    user = get_user_from_redis(redis, user_id)
+
+    user = get_user_from_redis(user_id)
     
     if user is not None:
         lang = user.lang
@@ -135,10 +130,15 @@ async def send_message_to_user(user_id: int, text: str, bot: Bot, disable_notifi
     # Admin chats are defined in the .env file and messages are sent to them when
 
 def send_message_to_admins(text: str, bot: Bot):
-    redis = init_redis(db=SERVICE_DATA_DB)
-    for admin_chat_id in read_admin_chats_from_redis(redis): 
+    for admin_chat_id in read_chats_from_redis_list(ADMIN_CHATS_KEY): 
         send_message_to_user(int(admin_chat_id), text, bot)
 
+
+async def redis_loop():
+    '''This loop is needed to execute the Redis commands pereopdically.'''
+    init_redis()
+    while True:
+        await asyncio.sleep(1200)
 
 class TelegramApiBot:
 
@@ -147,17 +147,23 @@ class TelegramApiBot:
         logging.info(f"Inited bot with token!")
         self.admin_ids_users = admin_ids_users
         logging.info(f"Admins: {self.admin_ids_users}")
-    
+
+    async def run_tasks(self):
+        database_loop = asyncio.create_task(redis_loop())
+        bot_loop = asyncio.create_task(self._run())
+        await asyncio.gather(database_loop, bot_loop)
+
+
     def run(self):
-        asyncio.run(self._run())
+        asyncio.run(self.run_tasks())
 
     # User handler zone
     @dp.message(CommandStart())
     async def command_start_handler(message: Message) -> None:
         """This handler receives messages with `/start` command
         """
-        redis = init_redis(db=USER_DATA_DB)
-        user = get_user_from_redis(redis, message.from_user.id)
+        redis = init_redis()
+        user = get_user_from_redis(message.from_user.id)
 
         if user is None:
             user=TelegramUser(
@@ -165,7 +171,7 @@ class TelegramApiBot:
                 username=str(message.from_user.username),
                 lang=Lang.Rus
             )
-            add_user_to_redis(redis=redis, user=user)
+            add_user_to_redis(user=user)
 
             logging.info(f"Username {message.from_user.username} added to the Reddis")
 
@@ -185,15 +191,14 @@ class TelegramApiBot:
     # Process the user's choice. Language change is handled here.
     @dp.message(F.text == buttons[Lang.Rus.value]["lang"] or F.text == buttons[Lang.Eng.value]["lang"])
     async def lang_change_handler(message: Message):
-        redis = init_redis(db=USER_DATA_DB)
-        user = get_user_from_redis(redis, message.from_user.id)
+        user = get_user_from_redis(message.from_user.id)
         if user is None:
             user=TelegramUser(
                 user_id=str(message.from_user.id),
                 username=str(message.from_user.username),
                 lang=Lang.Rus
             )
-            add_user_to_redis(redis=redis, user=user)
+            add_user_to_redis(user=user)
             logging.info(f"Username {message.from_user.username} added to the Reddis")
         
         if user.lang == Lang.Rus:
@@ -201,21 +206,20 @@ class TelegramApiBot:
         else:
             user.lang = Lang.Rus
     
-        add_user_to_redis(redis, user) 
-        await message.answer(get_message_for_user('lang_changed', user.lang), reply_markup=get_keyboard(user.user_id, redis))
+        add_user_to_redis(user) 
+        await message.answer(get_message_for_user('lang_changed', user.lang), reply_markup=get_keyboard(user.user_id))
 
 
     @dp.message((F.text == buttons[Lang.Rus.value]["check_membership"]) or (F.text == buttons[Lang.Eng.value]["check_membership"]) or F.text == "Check membership")
     async def check_membership_handler(message: Message):
-        redis = init_redis(db=USER_DATA_DB)
-        user = get_user_from_redis(redis, message.from_user.id)
+        user = get_user_from_redis(message.from_user.id)
         if user is None:
             user=TelegramUser(
                 user_id=str(message.from_user.id),
                 username=str(message.from_user.username),
                 lang=Lang.Rus
             )
-            add_user_to_redis(redis=redis, user=user)
+            add_user_to_redis(user=user)
             logging.info(f"Username {message.from_user.username} added to the Reddis")
         users_memberships: pd.DataFrame = get_user_data_pandas()
         membership = find_working_membership(user.username, users_memberships)
@@ -228,15 +232,14 @@ class TelegramApiBot:
 
     @dp.message(F.text == buttons[Lang.Rus.value]["check_in"] or F.text == buttons[Lang.Eng.value]["check_in"])
     async def check_in_handler(message: Message):
-        redis = init_redis(db=USER_DATA_DB)
-        user = get_user_from_redis(redis, message.from_user.id)
+        user = get_user_from_redis(message.from_user.id)
         if user is None:
             user=TelegramUser(
                 user_id=str(message.from_user.id),
                 username=str(message.from_user.username),
                 lang=Lang.Rus
             )
-            add_user_to_redis(redis=redis, user=user)
+            add_user_to_redis(user=user)
             logging.info(f"Username {message.from_user.username} added to the Reddis")
         await table_push_lock.acquire()
         try:
@@ -270,10 +273,9 @@ class TelegramApiBot:
 
     @dp.message(Command("admin"), IsAdmin(admin_ids_users))
     async def admin_command_handler(message: Message):
-        redis = init_redis(db=SERVICE_DATA_DB)
-        admin_chats = read_admin_chats_from_redis(redis)
+        admin_chats = read_chats_from_redis_list(ADMIN_CHATS_KEY)
         if message.chat.id not in admin_chats:
-            add_admin_chat_to_redis(redis, message.chat.id)
+            add_chat_to_redis_list(message.chat.id, ADMIN_CHATS_KEY)
             admin_chats.append(message.chat.id)
             await message.answer(f"Chat {message.chat.id} added to the admin list!")
         else:
