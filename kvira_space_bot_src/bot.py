@@ -63,6 +63,8 @@ token = getenv("TELEGRAM_API_KEY")
 bot = Bot(token, parse_mode=ParseMode.HTML)
 load_dotenv()
 admin_ids_users = getenv("ADMIN_CHATS")
+ADMIN_LOG_MSG_TXT = "Kvira bot admin update:"
+
 
 if admin_ids_users:
     if "," in admin_ids_users:
@@ -129,9 +131,9 @@ async def send_message_to_user(user_id: int, text: str, bot: Bot, disable_notifi
     # Admin handler zone
     # Admin chats are defined in the .env file and messages are sent to them when
 
-def send_message_to_admins(text: str, bot: Bot):
+async def send_message_to_admins(text: str, bot: Bot):
     for admin_chat_id in read_chats_from_redis_list(ADMIN_CHATS_KEY): 
-        send_message_to_user(int(admin_chat_id), text, bot)
+        await send_message_to_user(int(admin_chat_id), text, bot)
 
 
 async def redis_loop():
@@ -250,15 +252,18 @@ class TelegramApiBot:
                 msg = 'no_pass'
             else:
                 # If last punch was today, do nothing
-                last_punch = process_punches_from_string(membership.membership_data['punches'])[-1]
+                if len(membership.membership_data['punches']) > 0:
+                    last_punch = process_punches_from_string(membership.membership_data['punches'])[-1]
+                else:
+                    last_punch = None
                 today = datetime.now().strftime('%d.%m.%Y')
                 # logging.info(f"Last punch: {last_punch}, today: {today}, {last_punch == today}")
-                if last_punch == today:
+                if last_punch != None and last_punch == today:
                     msg = 'already_punched'
                 else:
                     ret_code = punch_user_day(membership.row_id)
                     if ret_code:
-                        send_message_to_admins(f"User {user.username} punched the pass", bot=bot)
+                        await send_message_to_admins(f"{ADMIN_LOG_MSG_TXT} User {user.username} punched the pass", bot=bot)
                         logging.info(f"User {user.username} punched the pass")
                         msg = 'pass_punched'
                     else:

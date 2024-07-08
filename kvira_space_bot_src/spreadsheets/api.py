@@ -56,6 +56,8 @@ def process_punches_from_string(punches: str) -> list:
     """Process the punches in form of string e.g. "6.06.2024, 7.06.2024"
     and return a list of punches e.g. ['6.06.2024', '7.06.2024']
     """
+    if punches == '' or punches == " ":
+        return []
     punches_list = punches.strip(" ").split(', ')
     punches_list = [ punch.strip() for punch in punches_list ]
     return punches_list
@@ -147,7 +149,12 @@ def punch_user_day(pd_row_id: int, current_date: str | None = None):
         # find row number of the user
         row_number = pd_row_id + 2
         # get all punches
-        punches = sheet.cell(row_number, 5).value.split(', ')
+        punches = sheet.cell(row_number, 5).value
+        if punches is None or punches == '' or punches == " ":
+            punches = []
+        else:
+            punches = punches.split(',')
+            punches = [ punch.strip() for punch in punches ]
         # add new punch
         if current_date is None:
             current_date = datetime.now().strftime('%d.%m.%Y')
