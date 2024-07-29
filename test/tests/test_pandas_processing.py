@@ -61,7 +61,10 @@ def test_get_current_membership():
     
     res = find_working_membership('SomeDude', df, current_date='06.06.2024')
     assert type(res) is WorkingMembership
-    assert res.row_id is None
+    assert res.row_id == 3, f"Index of SomeDude is {res.row_id} instead of 3"
+    assert res.membership_data['exparation_date'] == ''
+    assert res.membership_data['punches'] == ''
+    assert res.activated is False
     
     res = find_working_membership('Puk', df, current_date='06.06.2024')
     assert type(res) is WorkingMembership
@@ -73,6 +76,7 @@ def test_get_current_membership():
     assert type(res) is WorkingMembership
     assert res.row_id is None
     assert len(res.errors) == 1
+    print(f"Error message: {res.errors}")
     assert type(res.errors[0]) is DateStorageError
     
     
