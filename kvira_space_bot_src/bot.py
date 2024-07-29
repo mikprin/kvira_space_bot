@@ -9,26 +9,29 @@ logging.basicConfig(level=logging.INFO)
 from redis import Redis
 from datetime import datetime
 
-from aiogram import Bot, Dispatcher, types
+from aiogram import Bot, Dispatcher, types, F
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart
 from aiogram.types import Message
-from aiogram.utils.markdown import hbold
 from aiogram import BaseMiddleware
 from aiogram.filters import BaseFilter
 from aiogram.filters import Command
 from aiogram.types.keyboard_button import KeyboardButton
-from aiogram import F, exceptions
+
+from kvira_space_bot_src.spreadsheets.data import (
+    WorkingMembership,
+    Lang,
+)
 
 from kvira_space_bot_src.spreadsheets.api import (
-    get_days_left,
-    get_message_for_user,
     Lang,
     find_working_membership,
     get_days_left_from_membership,
     get_user_data_pandas,
     punch_user_day,
-    process_punches_from_string
+    process_punches_from_string,
+    get_all_text_json,
+    activate_membership,
 )
 from kvira_space_bot_src.redis_tools import (
     init_redis,
@@ -37,8 +40,16 @@ from kvira_space_bot_src.redis_tools import (
     TelegramUser,
     add_chat_to_redis_list,
     read_chats_from_redis_list,
-    ADMIN_CHATS_KEY
+    ADMIN_CHATS_KEY,
+    save_json_to_redis,
+    TEXT_SAVED_KEY
 )
+from kvira_space_bot_src.messaging import (
+    send_message_to_admins,
+    send_message_to_user,
+    get_message_for_user,
+    check_membership,
+    )
 
 from asyncio import Lock
 
@@ -64,7 +75,8 @@ bot = Bot(token, parse_mode=ParseMode.HTML)
 load_dotenv()
 admin_ids_users = getenv("ADMIN_CHATS")
 ADMIN_LOG_MSG_TXT = "Kvira bot admin update:"
-
+# (0 = Monday, 1 = Tuesday, ..., 2 = Wednesday, ..., 6 = Sunday)
+COMMUNITY_DAY = 2
 
 if admin_ids_users:
     if "," in admin_ids_users:
@@ -108,40 +120,13 @@ def get_keyboard(user_id, redis: Redis | None=None):
     )
     return keyboard
 
-async def send_message_to_user(user_id: int, text: str, bot: Bot, disable_notification: bool = False) -> bool:
-    try:
-        await bot.send_message(user_id, text, disable_notification=disable_notification)
-    except exceptions.BotBlocked:
-        logging.error(f"Target [ID:{user_id}]: blocked by user")
-    except exceptions.ChatNotFound:
-        logging.error(f"Target [ID:{user_id}]: invalid user ID")
-    except exceptions.RetryAfter as e:
-        logging.error(f"Target [ID:{user_id}]: Flood limit is exceeded. Sleep {e.timeout} seconds.")
-        await asyncio.sleep(e.timeout)
-        return await send_message_to_user(user_id, text)  # Recursive call
-    except exceptions.UserDeactivated:
-        logging.error(f"Target [ID:{user_id}]: user is deactivated")
-    except exceptions.TelegramAPIError:
-        logging.exception(f"Target [ID:{user_id}]: failed")
-    else:
-        logging.info(f"Target [ID:{user_id}]: success")
-        return True
-    return False
-
-    # Admin handler zone
-    # Admin chats are defined in the .env file and messages are sent to them when
-
-async def send_message_to_admins(text: str, bot: Bot):
-    for admin_chat_id in read_chats_from_redis_list(ADMIN_CHATS_KEY): 
-        await send_message_to_user(int(admin_chat_id), text, bot)
-
 
 async def redis_loop():
     '''This loop is needed to execute the Redis commands pereopdically.'''
     init_redis()
     while True:
         await asyncio.sleep(1200)
-
+                                    
 class TelegramApiBot:
 
     def __init__(self):
@@ -149,12 +134,21 @@ class TelegramApiBot:
         logging.info(f"Inited bot with token!")
         self.admin_ids_users = admin_ids_users
         logging.info(f"Admins: {self.admin_ids_users}")
+        
+        # Here I cache all the messages from the Google Sheet
+        # To redis database
+        all_msgs = get_all_text_json()
+        save_json_to_redis(all_msgs, TEXT_SAVED_KEY)
+        logging.info("Messages saved to the Redis database")
+
+    async def _run(self):
+        self._bot = bot
+        await dp.start_polling(self._bot)
 
     async def run_tasks(self):
         database_loop = asyncio.create_task(redis_loop())
         bot_loop = asyncio.create_task(self._run())
         await asyncio.gather(database_loop, bot_loop)
-
 
     def run(self):
         asyncio.run(self.run_tasks())
@@ -179,16 +173,19 @@ class TelegramApiBot:
 
         users_memberships: pd.DataFrame = get_user_data_pandas()
         membership = find_working_membership(user.username, users_memberships)
-        # TODO: Process table errors on this step
+        # Process error messages
+        if len(membership.errors) > 0:
+            for error in membership.errors:
+                await send_message_to_admins(f"{ADMIN_LOG_MSG_TXT} Error in validation for user {user.username}: {error}", bot=bot)
         hello_msg = get_message_for_user('hello_msg', user.lang)
-        
-        if membership.row_id is None:
-            hello_msg += f"\n{get_message_for_user('no_pass', user.lang)}"
-        else:
-            days_left = get_days_left_from_membership(membership)
-            hello_msg += f"\n{get_message_for_user('days_left', user.lang).format(days_left)}"
-        
-        await message.answer(hello_msg, reply_markup=get_keyboard(user.user_id))
+        messages = [hello_msg]
+        messages.extend(check_membership(user, membership))
+        # Also if it is a community day
+        current_date = datetime.now()
+        if current_date.weekday() == COMMUNITY_DAY:
+            messages.append(get_message_for_user('community_day', user.lang))
+        logging.info(f"Messages for user {user.username}: {messages}")
+        await message.answer("\n".join(messages), reply_markup=get_keyboard(user.user_id))
 
     # Process the user's choice. Language change is handled here.
     @dp.message(F.text == buttons[Lang.Rus.value]["lang"] or F.text == buttons[Lang.Eng.value]["lang"])
@@ -225,11 +222,8 @@ class TelegramApiBot:
             logging.info(f"Username {message.from_user.username} added to the Reddis")
         users_memberships: pd.DataFrame = get_user_data_pandas()
         membership = find_working_membership(user.username, users_memberships)
-        if membership.row_id is None:
-            await message.answer(get_message_for_user('no_pass', user.lang), reply_markup=get_keyboard(user.user_id))
-        else:
-            days_left = get_days_left_from_membership(membership)
-            await message.answer(get_message_for_user('days_left', user.lang).format(days_left), reply_markup=get_keyboard(user.user_id))
+        messages = check_membership(user, membership)
+        await message.answer("\n".join(messages), reply_markup=get_keyboard(user.user_id))
 
 
     @dp.message(F.text == buttons[Lang.Rus.value]["check_in"] or F.text == buttons[Lang.Eng.value]["check_in"])
@@ -243,20 +237,35 @@ class TelegramApiBot:
             )
             add_user_to_redis(user=user)
             logging.info(f"Username {message.from_user.username} added to the Reddis")
-        await table_push_lock.acquire()
-        try:
-            msg = None
-            users_memberships: pd.DataFrame = get_user_data_pandas()
-            membership = find_working_membership(user.username, users_memberships)
-            if membership.row_id is None:
-                msg = 'no_pass'
-            else:
+        msg = None
+        users_memberships: pd.DataFrame = get_user_data_pandas()
+        membership = find_working_membership(user.username, users_memberships)
+        if membership.activated is False:
+            activate_membership(membership)
+            membership.activated = True
+            user_id = message.from_user.id
+            text = get_message_for_user('pass_activated', user.lang)
+            await send_message_to_user(user_id, text, bot=bot)
+            # Notify admins
+            await send_message_to_admins(f"{ADMIN_LOG_MSG_TXT} User {user.username} activated the pass", bot=bot)
+        # if community_day
+        # Get the current date
+        current_date = datetime.now()
+
+        # Check if the current day is Wednesday (0 = Monday, 1 = Tuesday, ..., 2 = Wednesday, ..., 6 = Sunday)
+        if current_date.weekday() == COMMUNITY_DAY:
+            msg = 'community_day'
+        elif membership.row_id is None:
+            msg = 'no_pass'
+        else:
+            await table_push_lock.acquire()
+            try:
                 # If last punch was today, do nothing
                 if len(membership.membership_data['punches']) > 0:
                     last_punch = process_punches_from_string(membership.membership_data['punches'])[-1]
                 else:
                     last_punch = None
-                today = datetime.now().strftime('%d.%m.%Y')
+                today = current_date.strftime('%d.%m.%Y')
                 # logging.info(f"Last punch: {last_punch}, today: {today}, {last_punch == today}")
                 if last_punch != None and last_punch == today:
                     msg = 'already_punched'
@@ -269,12 +278,10 @@ class TelegramApiBot:
                     else:
                         logging.error(f"Error while punching the pass for user {user.username}")
                         msg = "error_punching"
-        finally:
-            table_push_lock.release()
+            finally:
+                table_push_lock.release()
         await message.answer(get_message_for_user(msg, user.lang), reply_markup=get_keyboard(user.user_id))
-    async def _run(self):
-        self._bot = bot
-        await dp.start_polling(self._bot)
+
 
     @dp.message(Command("admin"), IsAdmin(admin_ids_users))
     async def admin_command_handler(message: Message):

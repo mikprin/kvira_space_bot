@@ -1,13 +1,17 @@
 import asyncio
 import os
 
-from kvira_space_bot_src.spreadsheets.api import Lang
+import logging
+import json
+from kvira_space_bot_src.spreadsheets.data import Lang
 from redis import Redis
 from pydantic import BaseModel
 from asyncio import Lock
+from pydantic import ValidationError
 
 ALL_USERS_KEY_LIST = 'all_users_redis_key_list'
 ADMIN_CHATS_KEY = 'admin_chats_redis_key'
+TEXT_SAVED_KEY = 'text_saved_redis_key'
 
 redis_user_db_lock = Lock()
 
@@ -23,7 +27,7 @@ SERVICE_DATA_DB = 1
 
 os.environ.get('AWS_MAX_POOL_CONNECTIONS', 1)
 redis_user_db = Redis(host=redis_host, port=redis_port, db=USER_DATA_DB)
-redos_service_db = Redis(host=redis_host, port=redis_port, db=SERVICE_DATA_DB)
+redis_service_db = Redis(host=redis_host, port=redis_port, db=SERVICE_DATA_DB)
 
 class UserPass(BaseModel):
     pass
@@ -34,32 +38,40 @@ class TelegramUser(BaseModel):
     user_pass: UserPass | None = None
 
 
+def get_redis_user_db() -> Redis:
+    """For using in notebooks and tests."""
+    return redis_user_db
+
+def get_redis_service_db() -> Redis:
+    """For using in notebooks and tests."""
+    return redis_service_db
+
 def init_redis() -> None:
     """this function checks if global variables are redis objects is working properly
     if not, it will try to reconnect to the redis server
     """
     global redis_user_db
-    global redos_service_db
+    global redis_service_db
     try:
         redis_user_db.ping()
-        redos_service_db.ping()
+        redis_service_db.ping()
     except:
         redis_user_db = Redis(host=redis_host, port=redis_port, db=USER_DATA_DB)
-        redos_service_db = Redis(host=redis_host, port=redis_port, db=SERVICE_DATA_DB)
+        redis_service_db = Redis(host=redis_host, port=redis_port, db=SERVICE_DATA_DB)
         redis_user_db.ping()
-        redos_service_db.ping()
+        redis_service_db.ping()
 
 def add_chat_to_redis_list(chat_id: str, key: str) -> None:
     """Adds this chat_id to the Redis database list of admin chats.
     """
-    redis = redos_service_db
+    redis = redis_service_db
     redis.sadd(key, chat_id)
     
 def read_chats_from_redis_list(key: str) -> list[str]:
     """Reads the list of admin chats from the Redis database.
     Decode each chat_id from bytes to string.
     """
-    redis = redos_service_db
+    redis = redis_service_db
     return [chat_id.decode('utf-8') for chat_id in redis.smembers(key)]
 
 def add_user_to_redis(user: TelegramUser) -> None:
@@ -77,7 +89,13 @@ def get_user_from_redis(userid: str) -> TelegramUser:
     # Check if the user exists in the database
     if not redis.exists(userid):
         return None
-    return TelegramUser.parse_raw(redis.get(userid))
+    user = redis.get(userid)
+    try:
+        user = TelegramUser.parse_raw(user)
+    except ValidationError:
+        logging.error(f"User with id {userid} is not in the correct format.")
+        return None
+    return user
 
 
 def update_user_lang_in_redis(userid: str, lang: Lang) -> None:
@@ -98,3 +116,17 @@ def get_all_users() -> list[TelegramUser]:
         get_user_from_redis(key.decode('utf-8'))
         for key in keys
     ]
+    
+def save_json_to_redis(data: dict, key: str) -> None:
+    """Save a JSON object to the Redis database.
+    """
+    json_data = json.dumps(data)
+    redis = redis_service_db
+    redis.set(key, json_data)
+    
+def read_json_from_redis(key: str) -> dict:
+    """Read a JSON object from the Redis database.
+    """
+    redis = redis_service_db
+    json_data = redis.get(key)
+    return json.loads(json_data)
