@@ -39,7 +39,12 @@ def get_user_data_pandas() -> pd.DataFrame:
     """Get all user data from the spreadsheet.
     """
     sheet = get_users_sheet()
-    return pd.DataFrame(sheet.get_all_records())
+    # return pd.DataFrame(sheet.get_all_records())
+    values = sheet.get_values()
+    df = pd.DataFrame(values[1:], columns=values[0])
+    # Drop all rows where tg_nickname is empty
+    df = df.dropna(subset=['tg_nickname'])
+    return df
 
 def find_user_in_df(username: str, df: pd.DataFrame) -> pd.DataFrame:
     """Find all rows where tg_nickname == username
