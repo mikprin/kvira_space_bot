@@ -76,7 +76,7 @@ load_dotenv()
 admin_ids_users = getenv("ADMIN_CHATS")
 ADMIN_LOG_MSG_TXT = "Kvira bot admin update:"
 # (0 = Monday, 1 = Tuesday, ..., 2 = Wednesday, ..., 6 = Sunday)
-COMMUNITY_DAY = 2
+COMMUNITY_DAY = 3
 
 if admin_ids_users:
     if "," in admin_ids_users:
@@ -228,6 +228,9 @@ class TelegramApiBot:
 
     @dp.message(F.text == buttons[Lang.Rus.value]["check_in"] or F.text == buttons[Lang.Eng.value]["check_in"])
     async def check_in_handler(message: Message):
+        # Get the current date
+        current_date = datetime.now()
+        
         user = get_user_from_redis(message.from_user.id)
         if user is None:
             user=TelegramUser(
@@ -240,18 +243,17 @@ class TelegramApiBot:
         msg = None
         users_memberships: pd.DataFrame = get_user_data_pandas()
         membership = find_working_membership(user.username, users_memberships)
-        if membership.activated is False:
-            activate_membership(membership)
-            membership.activated = True
-            user_id = message.from_user.id
-            text = get_message_for_user('pass_activated', user.lang)
-            await send_message_to_user(user_id, text, bot=bot)
-            # Notify admins
-            await send_message_to_admins(f"{ADMIN_LOG_MSG_TXT} User {user.username} activated the pass", bot=bot)
+        if current_date.weekday() != COMMUNITY_DAY:
+            # Activate the pass if it is not activated if it is NOT a community day
+            if membership.activated is False:
+                activate_membership(membership)
+                membership.activated = True
+                user_id = message.from_user.id
+                text = get_message_for_user('pass_activated', user.lang)
+                await send_message_to_user(user_id, text, bot=bot)
+                # Notify admins
+                await send_message_to_admins(f"{ADMIN_LOG_MSG_TXT} User {user.username} activated the pass", bot=bot)
         # if community_day
-        # Get the current date
-        current_date = datetime.now()
-
         # Check if the current day is Wednesday (0 = Monday, 1 = Tuesday, ..., 2 = Wednesday, ..., 6 = Sunday)
         if current_date.weekday() == COMMUNITY_DAY:
             msg = 'community_day'

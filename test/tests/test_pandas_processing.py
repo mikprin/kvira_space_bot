@@ -112,3 +112,7 @@ def test_get_days_left_from_membership():
     
     days_left = get_days_left_from_membership(membership)
     assert days_left == 6, f"Days left for Dark is {days_left} instead of 6"
+
+
+def test_values_to_pandas_conversion():
+    pass
