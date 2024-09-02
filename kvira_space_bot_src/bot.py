@@ -59,12 +59,12 @@ buttons = {
     Lang.Rus.value: {
         "check_membership": "Проверить абонемент",
         "check_in": "Отметить посещение",
-        "lang": "🌐"
+        "lang": "🌐 Eng/Ru"
     },
     Lang.Eng.value: {
         "check_membership": "Check membership",
         "check_in": "Register visit",
-        "lang": "🌐",
+        "lang": "🌐 Eng/Ru",
     },
 }
 
