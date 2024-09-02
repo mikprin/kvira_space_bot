@@ -11,6 +11,10 @@ from kvira_space_bot_src.spreadsheets.data import (UserPassType,
                                                    Lang
 )
 
+USERS_SHEET_NAME = 'Memberships-bot'
+TEXTS_SHEET_NAME = 'Prompts-bot'
+
+
 if not os.environ.get('KVIRA_BOT_TESTS_ENV'):
     # If we are not in the tests environment, we need to load the environment variables
     GOOGLE_KEY_FILE_PATH = os.environ['GOOGLE_KEY_FILE_PATH']
@@ -32,7 +36,14 @@ def get_gc():
 
 def get_users_sheet():
     gc = get_gc()
-    sheet = gc.open_by_key(GOOGLE_DOC_ID).sheet1
+    table = gc.open_by_key(GOOGLE_DOC_ID)
+    worksheet_list = table.worksheets()
+    # Find sheet with title USERS_SHEET_NAME
+    sheet = None
+    for worksheet in worksheet_list:
+        if worksheet.title == USERS_SHEET_NAME:
+            sheet = worksheet
+            break
     return sheet
 
 def get_user_data_pandas() -> pd.DataFrame:
@@ -198,7 +209,14 @@ def get_expation_date(username: str) -> str:
 
 def get_text_sheet():
     gc = get_gc()
-    sheet = gc.open_by_key(GOOGLE_DOC_ID).get_worksheet(1)
+    table = gc.open_by_key(GOOGLE_DOC_ID)
+    worksheet_list = table.worksheets()
+    # Find sheet with title USERS_SHEET_NAME
+    sheet = None
+    for worksheet in worksheet_list:
+        if worksheet.title == TEXTS_SHEET_NAME:
+            sheet = worksheet
+            break
     return sheet
 
 def get_message_for_user_from_google(str_id: str, lang: Lang) -> str:
