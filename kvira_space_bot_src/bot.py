@@ -76,7 +76,7 @@ load_dotenv()
 admin_ids_users = getenv("ADMIN_CHATS")
 ADMIN_LOG_MSG_TXT = "Kvira bot admin update:"
 # (0 = Monday, 1 = Tuesday, ..., 2 = Wednesday, ..., 6 = Sunday)
-COMMUNITY_DAY = 3
+COMMUNITY_DAY = 2
 
 if admin_ids_users:
     if "," in admin_ids_users:
