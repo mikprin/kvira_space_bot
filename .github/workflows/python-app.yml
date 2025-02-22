@@ -27,8 +27,8 @@ jobs:
     - name: Test with pytest
       run: |
         python3 -m pip install --upgrade pip
-        python3 -m pip install pytest
+        pip install pytest
         sudo apt install make
         # pip install flake8
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        make test
+        python3 -m pytest -v test/tests
