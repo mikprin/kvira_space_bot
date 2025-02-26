@@ -11,3 +11,7 @@ all:
 .PHONY: test
 test:
 	./scripts/run_tests.sh
+
+.PHONY: up
+up:
+	docker-compose up -d --build
