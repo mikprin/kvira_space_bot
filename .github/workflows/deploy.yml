@@ -1,0 +1,46 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:  # Allows manual trigger
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Set up known hosts
+        run: |
+            mkdir -p ~/.ssh
+            echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+            chmod 600 ~/.ssh/id_rsa
+            ssh-keyscan -p ${{ secrets.SERVER_PORT }} -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+        env:
+            SERVER_IP: ${{ secrets.SERVER_IP }}
+            SERVER_PORT: ${{ secrets.SERVER_PORT }}
+
+
+      - name: Deploy to server
+        env:
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT }}
+
+        run: |
+          # Example deployment commands
+          ssh -p $SERVER_PORT $SERVER_USER@$SERVER_IP "cd $DEPLOY_PATH && git pull origin master"
+
+          # If you need to copy build files:
+          ssh -p $SERVER_PORT $SERVER_USER@$SERVER_IP "cd $DEPLOY_PATH && make podman-up"
+
