@@ -15,3 +15,8 @@ test:
 .PHONY: up
 up:
 	docker-compose up -d --build
+
+.PHONY: podman-up
+up:
+	podman-compose down
+	podman-compose up -d --build

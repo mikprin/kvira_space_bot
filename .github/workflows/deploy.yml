@@ -42,5 +42,5 @@ jobs:
           ssh -p $SERVER_PORT $SERVER_USER@$SERVER_IP "cd $DEPLOY_PATH && git pull origin master"
 
           # If you need to copy build files:
-          ssh -p $SERVER_PORT $SERVER_USER@$SERVER_IP "cd $DEPLOY_PATH && make up"
+          ssh -p $SERVER_PORT $SERVER_USER@$SERVER_IP "cd $DEPLOY_PATH && make podman-up"
 
