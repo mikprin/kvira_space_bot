@@ -16,6 +16,14 @@ test:
 up:
 	docker-compose up -d --build
 
+.PHONY: up-dev
+up-dev:
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+
+.PHONY: down
+down:
+	docker-compose down
+
 .PHONY: podman-up
 podman-up:
 	podman-compose down

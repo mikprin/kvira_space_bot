@@ -1,0 +1,5 @@
+version: "3.9"
+services:
+  kvira_redis:
+    ports:
+      - "16379:6379"
