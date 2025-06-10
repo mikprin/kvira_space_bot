@@ -59,11 +59,13 @@ buttons = {
     Lang.Rus.value: {
         "check_membership": "Проверить абонемент",
         "check_in": "Отметить посещение",
+        "calendar": "Календарь",
         "lang": "🌐 Eng/Ru"
     },
     Lang.Eng.value: {
         "check_membership": "Check membership",
         "check_in": "Register visit",
+        "calendar": "Calendar",
         "lang": "🌐 Eng/Ru",
     },
 }
@@ -110,6 +112,7 @@ def get_keyboard(user_id, redis: Redis | None=None):
         [
             KeyboardButton(text=buttons[lang.value]["check_membership"]),
             KeyboardButton(text=buttons[lang.value]["check_in"]),
+            KeyboardButton(text=buttons[lang.value]["calendar"]),
             KeyboardButton(text=buttons[lang.value]["lang"]),
             ]
     ]
@@ -224,6 +227,20 @@ class TelegramApiBot:
         membership = find_working_membership(user.username, users_memberships)
         messages = check_membership(user, membership)
         await message.answer("\n".join(messages), reply_markup=get_keyboard(user.user_id))
+
+
+    @dp.message((F.text == buttons[Lang.Rus.value]["calendar"]) or (F.text == buttons[Lang.Eng.value]["calendar"]))
+    async def check_membership_handler(message: Message):
+        user = get_user_from_redis(message.from_user.id)
+        if user is None:
+            user=TelegramUser(
+                user_id=str(message.from_user.id),
+                username=str(message.from_user.username),
+                lang=Lang.Rus
+            )
+            add_user_to_redis(user=user)
+            logging.info(f"Username {message.from_user.username} added to the Reddis")
+        await message.answer(get_message_for_user('calendar', user.lang), reply_markup=get_keyboard(user.user_id))
 
 
     @dp.message(F.text == buttons[Lang.Rus.value]["check_in"] or F.text == buttons[Lang.Eng.value]["check_in"])
