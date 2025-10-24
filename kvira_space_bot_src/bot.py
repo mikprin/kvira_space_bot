@@ -3,7 +3,6 @@ import logging
 from asyncio import Lock
 from datetime import datetime
 
-import pandas as pd
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.enums import ParseMode
 from aiogram.filters import BaseFilter
@@ -32,9 +31,9 @@ from kvira_space_bot_src.redis_tools import (
 from kvira_space_bot_src.spreadsheets.api import (
     Lang,
     find_working_membership,
-    get_user_data_pandas,
+    get_all_user_data,
     punch_user_day,
-    process_punches_from_string,
+    split_punch_string,
     get_all_text_json,
     activate_membership,
 )
@@ -166,8 +165,7 @@ class TelegramApiBot:
         init_redis()
         user = get_user(message.from_user.id, message.from_user.username)
 
-        users_memberships: pd.DataFrame = get_user_data_pandas()
-        membership = find_working_membership(user.username, users_memberships)
+        membership = find_working_membership(user.username)
         # Process error messages
         if len(membership.errors) > 0:
             for error in membership.errors:
@@ -196,8 +194,7 @@ class TelegramApiBot:
 
     async def handle_check_membership(self, message: Message):
         user = get_user(message.from_user.id, message.from_user.username)
-        users_memberships: pd.DataFrame = get_user_data_pandas()
-        membership = find_working_membership(user.username, users_memberships)
+        membership = find_working_membership(user.username)
         messages = check_membership(user, membership)
         await message.answer("\n".join(messages), reply_markup=get_keyboard(user.user_id))
 
@@ -210,9 +207,7 @@ class TelegramApiBot:
         current_date = datetime.now()
         
         user = get_user(message.from_user.id, message.from_user.username)
-        msg = None
-        users_memberships: pd.DataFrame = get_user_data_pandas()
-        membership = find_working_membership(user.username, users_memberships)
+        membership = find_working_membership(user.username)
         if current_date.weekday() != COMMUNITY_DAY:
             # Activate the pass if it is not activated if it is NOT a community day
             if membership.activated is False:
@@ -232,7 +227,7 @@ class TelegramApiBot:
             try:
                 # If last punch was today, do nothing
                 if len(membership.membership_data['punches']) > 0:
-                    last_punch = process_punches_from_string(membership.membership_data['punches'])[-1]
+                    last_punch = split_punch_string(membership.membership_data['punches'])[-1]
                 else:
                     last_punch = None
                 today = current_date.strftime('%d.%m.%Y')

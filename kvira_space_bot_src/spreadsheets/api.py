@@ -30,11 +30,7 @@ def split_punch_string(punches: str) -> list:
     return [punch.strip() for punch in punches_list if punch.strip()]
 
 
-def get_gc():
-    gc = gspread.service_account(filename=GOOGLE_KEY_FILE_PATH)
-    return gc
-
-def get_user_data_pandas() -> pd.DataFrame:
+def get_all_user_data() -> pd.DataFrame:
     """Get all user data from the spreadsheet.
     """
     sheet = get_sheet(USERS_SHEET)
@@ -50,10 +46,12 @@ def find_user_in_df(username: str, df: pd.DataFrame) -> pd.DataFrame:
     """
     return df[df['tg_nickname'] == username]
 
+
 def process_error_in_username(username: str) -> None:
     pass
 
-def validate_membership_row(row: pd.Series) -> bool:
+
+def validate_membership_row(row: pd.Series) -> ValidationResult:
     """Check if all date rows are in the correct format.
     Returns status of validation and list of errors
     """
@@ -78,18 +76,20 @@ def validate_membership_row(row: pd.Series) -> bool:
         return ValidationResult(result=False, validation_erros=errors)
     return ValidationResult(result=True, validation_erros=errors)
 
-def find_working_membership(username, df: pd.DataFrame, current_date: str | None = None) -> WorkingMembership:
+
+def find_working_membership(username, current_date: str | None = None, df: pd.DataFrame | None = None) -> WorkingMembership:
     """Find all rows where tg_nickname == username
     Return WorkingMembership object with row_id and errors
     row_id is the index of the row in the dataframe
     errors is a list of DateStorageError objects which will be used to notify admins about the errors
     """
+    data = get_all_user_data() if df is None else df
     errors = list()
     if current_date is None:
         current_date = datetime.now()
     else:
         current_date = datetime.strptime(current_date, '%d.%m.%Y')
-    user_df = find_user_in_df(username, df)
+    user_df = find_user_in_df(username, data)
     if len(user_df) > 0:
         for index, row in user_df.iterrows():
             # On this step current date should be compared with activation date + 30 days
@@ -196,7 +196,7 @@ def get_expation_date(username: str) -> str:
     return expation_date
 
 def get_sheet(name):
-    gc = get_gc()
+    gc = gspread.service_account(filename=GOOGLE_KEY_FILE_PATH)
     table = gc.open_by_key(GOOGLE_DOC_ID)
     worksheet_list = table.worksheets()
     # Find sheet with title USERS_SHEET_NAME
