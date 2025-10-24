@@ -130,8 +130,10 @@ def get_keyboard(user_id, button_layout):
     return keyboard
 
 
-def get_user(user_id, username):
-    user = get_user_from_redis(user_id)
+def get_user(message: Message):
+    user_id = message.from_user.id
+    username = message.from_user.username
+    user = get_user_from_redis(str(user_id))
     if user is None:
         user = TelegramUser(
             user_id=str(user_id),
@@ -178,7 +180,7 @@ class TelegramApiBot:
         Register all dispatcher handlers.
         """
         self._dp.message.register(self.handle_start, CommandStart())
-        self._dp.message.register(self.handle_admin_register, Command("admin"), IsAdmin(self._admin_list))
+        self._dp.message.register(handle_admin_register, Command("admin"), IsAdmin(self._admin_list))
         self._dp.message.register(self.handle_lang_change, F.text.in_(BUTTONS["lang"].values()))
         self._dp.message.register(
             self.handle_check_membership,
@@ -196,14 +198,18 @@ class TelegramApiBot:
             F.text.in_(BUTTONS["check_in"].values())
         )
         self._dp.message.register(
-            self.handle_quest_mode_on,
+            handle_quest_mode_on,
             StateFilter(UserStates.main_menu),
             F.text.in_(BUTTONS["quest_mode"].values())
         )
         self._dp.message.register(
-            self.handle_quest_mode_off,
+            handle_quest_mode_off,
             StateFilter(UserStates.quest_mode),
             F.text.in_(BUTTONS["return"].values())
+        )
+        self._dp.message.register(
+            handle_quest_clue,
+            StateFilter(UserStates.quest_mode),
         )
 
     def run(self):
@@ -214,7 +220,7 @@ class TelegramApiBot:
         This handler receives messages with `/start` command
         """
         init_redis()
-        user = get_user(message.from_user.id, message.from_user.username)
+        user = get_user(message)
 
         membership = find_working_membership(user.username)
         # Process error messages
@@ -235,24 +241,8 @@ class TelegramApiBot:
         await state.set_state(UserStates.main_menu)
         await message.answer("\n".join(messages), reply_markup=get_keyboard(user.user_id, TOP_LEVEL_BUTTON_LAYOUT))
 
-    async def handle_quest_mode_on(self, message: Message, state: FSMContext):
-        user = get_user(message.from_user.id, message.from_user.username)
-        await state.set_state(UserStates.quest_mode)
-        await message.answer(
-            "quest mode",
-            reply_markup=get_keyboard(user.user_id, QUEST_BUTTON_LAYOUT),
-        )
-
-    async def handle_quest_mode_off(self, message: Message, state: FSMContext):
-        user = get_user(message.from_user.id, message.from_user.username)
-        await state.set_state(UserStates.main_menu)
-        await message.answer(
-            "main mode",
-            reply_markup=get_keyboard(user.user_id, TOP_LEVEL_BUTTON_LAYOUT),
-        )
-
     async def handle_lang_change(self, message: Message):
-        user = get_user(message.from_user.id, message.from_user.username)
+        user = get_user(message)
         
         if user.lang == Lang.Rus:
             user.lang = Lang.Eng
@@ -266,13 +256,13 @@ class TelegramApiBot:
         )
 
     async def handle_check_membership(self, message: Message):
-        user = get_user(message.from_user.id, message.from_user.username)
+        user = get_user(message)
         membership = find_working_membership(user.username)
         messages = check_membership(user, membership)
         await message.answer("\n".join(messages), reply_markup=get_keyboard(user.user_id, TOP_LEVEL_BUTTON_LAYOUT))
 
     async def handle_calendar(self, message: Message):
-        user = get_user(message.from_user.id, message.from_user.username)
+        user = get_user(message)
         await message.answer(
             get_message_for_user('calendar', user.lang),
             reply_markup=get_keyboard(user.user_id, TOP_LEVEL_BUTTON_LAYOUT)
@@ -282,7 +272,7 @@ class TelegramApiBot:
         # Get the current date
         current_date = datetime.now()
         
-        user = get_user(message.from_user.id, message.from_user.username)
+        user = get_user(message)
         membership = find_working_membership(user.username)
         if current_date.weekday() != COMMUNITY_DAY:
             # Activate the pass if it is not activated if it is NOT a community day
@@ -326,11 +316,35 @@ class TelegramApiBot:
             reply_markup=get_keyboard(user.user_id, TOP_LEVEL_BUTTON_LAYOUT)
         )
 
-    async def handle_admin_register(self, message: Message):
-        admin_chats = read_chats_from_redis_list(ADMIN_CHATS_KEY)
-        if message.chat.id not in admin_chats:
-            add_chat_to_redis_list(message.chat.id, ADMIN_CHATS_KEY)
-            admin_chats.append(message.chat.id)
-            await message.answer(f"Chat {message.chat.id} added to the admin list!")
-        else:
-            await message.answer("You are already in admin list!")
+
+async def handle_admin_register(message: Message):
+    admin_chats = read_chats_from_redis_list(ADMIN_CHATS_KEY)
+    chat_id = str(message.chat.id)
+    if chat_id not in admin_chats:
+        add_chat_to_redis_list(chat_id, ADMIN_CHATS_KEY)
+        admin_chats.append(chat_id)
+        await message.answer(f"Chat {message.chat.id} added to the admin list!")
+    else:
+        await message.answer("You are already in admin list!")
+
+
+async def handle_quest_mode_on(message: Message, state: FSMContext):
+    user = get_user(message)
+    await state.set_state(UserStates.quest_mode)
+    await message.answer(
+        "quest mode",
+        reply_markup=get_keyboard(user.user_id, QUEST_BUTTON_LAYOUT),
+    )
+
+
+async def handle_quest_mode_off(message: Message, state: FSMContext):
+    user = get_user(message)
+    await state.set_state(UserStates.main_menu)
+    await message.answer(
+        "main mode",
+        reply_markup=get_keyboard(user.user_id, TOP_LEVEL_BUTTON_LAYOUT),
+    )
+
+
+async def handle_quest_clue(message: Message):
+    pass
