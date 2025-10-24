@@ -1,6 +1,7 @@
 from enum import Enum
 from dataclasses import dataclass, field
 
+
 class UserPassType(Enum):
     """Types of passes that the user can have.
     Value represents the number of days the pass is valid for.
@@ -28,6 +29,7 @@ class ValidationResult:
     result: bool
     validation_erros: list = field(default_factory=lambda: list())
 
+
 @dataclass
 class DateStorageError:
     """Class to store all errors that can happen during the data processing.
@@ -36,15 +38,17 @@ class DateStorageError:
     """
     error_message: str
     row_data: dict | None = None
-    
+
+
 @dataclass
-class WorkingMembership():
+class WorkingMembership:
     """Class to store all working memberships.
     """
     row_id: int | None = None
     activated: bool | None = None
     membership_data: dict | None = None
     errors: list = field(default_factory=lambda: list())
+
 
 class Lang(Enum):
     """Language enum for the message to be sent to the user.
