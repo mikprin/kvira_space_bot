@@ -33,6 +33,7 @@ from kvira_space_bot_src.redis_tools import (
     TEXT_SAVED_KEY
 )
 from kvira_space_bot_src.spreadsheets.data import Lang
+from kvira_space_bot_src.spreadsheets.halloween import CRYPTIDS
 from kvira_space_bot_src.spreadsheets.memberships import (
     find_working_membership,
     punch_user_day,
@@ -347,4 +348,15 @@ async def handle_quest_mode_off(message: Message, state: FSMContext):
 
 
 async def handle_quest_clue(message: Message):
-    pass
+    user = get_user(message)
+    if not message.text:
+        await message.answer(
+            "empty clue",
+            reply_markup=get_keyboard(user.user_id, QUEST_BUTTON_LAYOUT),
+        )
+    else:
+        reply = "Nice clue" if message.text in CRYPTIDS else "Not a clue"
+        await message.answer(
+            reply,
+            reply_markup=get_keyboard(user.user_id, QUEST_BUTTON_LAYOUT),
+        )
