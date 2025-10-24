@@ -11,8 +11,8 @@ from kvira_space_bot_src.spreadsheets.data import (UserPassType,
                                                    Lang
 )
 
-USERS_SHEET_NAME = 'Memberships-bot'
-TEXTS_SHEET_NAME = 'Prompts-bot'
+USERS_SHEET = 'Memberships-bot'
+TEXTS_SHEET = 'Prompts-bot'
 
 
 if not os.environ.get('KVIRA_BOT_TESTS_ENV'):
@@ -34,22 +34,10 @@ def get_gc():
     gc = gspread.service_account(filename=GOOGLE_KEY_FILE_PATH)
     return gc
 
-def get_users_sheet():
-    gc = get_gc()
-    table = gc.open_by_key(GOOGLE_DOC_ID)
-    worksheet_list = table.worksheets()
-    # Find sheet with title USERS_SHEET_NAME
-    sheet = None
-    for worksheet in worksheet_list:
-        if worksheet.title == USERS_SHEET_NAME:
-            sheet = worksheet
-            break
-    return sheet
-
 def get_user_data_pandas() -> pd.DataFrame:
     """Get all user data from the spreadsheet.
     """
-    sheet = get_users_sheet()
+    sheet = get_sheet(USERS_SHEET)
     # return pd.DataFrame(sheet.get_all_records())
     values = sheet.get_values()
     df = pd.DataFrame(values[1:], columns=values[0])
@@ -142,14 +130,14 @@ def activate_membership(membership: WorkingMembership, current_date: str | None 
         current_date = datetime.now().strftime('%d.%m.%Y')
     else:
         current_date = datetime.strptime(current_date, '%d.%m.%Y')
-    sheet = get_users_sheet()
+    sheet = get_sheet(USERS_SHEET)
     row_number = membership.row_id + 2
     sheet.update_cell(row_number, 3, current_date)
     return True
 
 
 def check_if_user_exists(username: str) -> bool:
-    sheet = get_users_sheet()
+    sheet = get_sheet(USERS_SHEET)
     column_data = sheet.col_values(1)[1:]
     return username in column_data
 
@@ -157,7 +145,7 @@ def punch_user_day(pd_row_id: int, current_date: str | None = None):
     """Punch the user for the current day.
     """
     try:
-        sheet = get_users_sheet()
+        sheet = get_sheet(USERS_SHEET)
         # find row number of the user
         row_number = pd_row_id + 2
         # get all punches
@@ -199,7 +187,7 @@ def get_days_left_from_membership(membership: WorkingMembership) -> int:
 def get_expation_date(username: str) -> str:
     """Get the expiration date of the pass for the user.
     """
-    sheet = get_users_sheet()
+    sheet = get_sheet(USERS_SHEET)
     # find row number of the user
     row_number = sheet.col_values(1).index(username) + 1
     
@@ -207,14 +195,14 @@ def get_expation_date(username: str) -> str:
     expation_date = sheet.cell(row_number, column_number).value
     return expation_date
 
-def get_text_sheet():
+def get_sheet(name):
     gc = get_gc()
     table = gc.open_by_key(GOOGLE_DOC_ID)
     worksheet_list = table.worksheets()
     # Find sheet with title USERS_SHEET_NAME
     sheet = None
     for worksheet in worksheet_list:
-        if worksheet.title == TEXTS_SHEET_NAME:
+        if worksheet.title == name:
             sheet = worksheet
             break
     return sheet
@@ -225,7 +213,7 @@ def get_message_for_user_from_google(str_id: str, lang: Lang) -> str:
     Columns in the spreadsheet correspond to the Lang enum values.
     Rows in the spreadsheet correspond to the particular phrases used by the bot.
     """
-    sheet = get_text_sheet()
+    sheet = get_sheet(TEXTS_SHEET)
     row_number = sheet.col_values(1).index(str_id) + 1
     column_number = lang.value
     msg = sheet.cell(row_number, column_number).value
@@ -233,7 +221,7 @@ def get_message_for_user_from_google(str_id: str, lang: Lang) -> str:
 
 def get_all_text_json() -> dict:
     """Get all messages from the spreadsheet and return them as a dictionary."""
-    sheet = get_text_sheet()
+    sheet = get_sheet(TEXTS_SHEET)
     listed_data = sheet.get_all_records()
     dicted_data = dict()
     # It is now in format list[dict]
