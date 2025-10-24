@@ -49,7 +49,7 @@ def test_get_current_membership():
         'punches': '6.06.2024, 7.06.2024, 8.06.2024'},
         {'tg_nickname': 'ErrorSample',
         'pass_type': '2day',
-        'date_activated': 1.1,
+        'date_activated': '1.1',
         'exparation_date': '',
         'punches': '1,1'}]
     
@@ -78,8 +78,7 @@ def test_get_current_membership():
     assert len(res.errors) == 1
     print(f"Error message: {res.errors}")
     assert type(res.errors[0]) is DateStorageError
-    
-    
+
 
 def test_get_days_left_from_membership():
     
