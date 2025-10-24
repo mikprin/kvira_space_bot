@@ -20,15 +20,15 @@ if not os.environ.get('KVIRA_BOT_TESTS_ENV'):
     GOOGLE_KEY_FILE_PATH = os.environ['GOOGLE_KEY_FILE_PATH']
     GOOGLE_DOC_ID = os.environ['GOOGLE_DOC_ID']
 
-def process_punches_from_string(punches: str) -> list:
-    """Process the punches in form of string e.g. "6.06.2024, 7.06.2024"
+
+def split_punch_string(punches: str) -> list:
+    """
+    Process the punches in form of string e.g. "6.06.2024, 7.06.2024"
     and return a list of punches e.g. ['6.06.2024', '7.06.2024']
     """
-    if punches == '' or punches == " ":
-        return []
-    punches_list = punches.strip(" ").split(', ')
-    punches_list = [ punch.strip() for punch in punches_list ]
-    return punches_list
+    punches_list = punches.strip().split(',')
+    return [punch.strip() for punch in punches_list if punch.strip()]
+
 
 def get_gc():
     gc = gspread.service_account(filename=GOOGLE_KEY_FILE_PATH)
@@ -181,7 +181,7 @@ def get_days_left_from_membership(membership: WorkingMembership) -> int:
     """Get days left from the WorkingMembership object.
     """
     pass_type = membership.membership_data['pass_type']
-    punches = process_punches_from_string(membership.membership_data['punches'])
+    punches = split_punch_string(membership.membership_data['punches'])
     return UserPassType.get_days_count(pass_type) - len(punches)
 
 def get_expation_date(username: str) -> str:
