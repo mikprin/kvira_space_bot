@@ -5,7 +5,7 @@ load_dotenv()
 
 if os.environ.get('GOOGLE_KEY_FILE_PATH'):
     from kvira_space_bot_src.messaging import check_membership, get_message_for_user
-    from kvira_space_bot_src.spreadsheets.api import WorkingMembership, Lang
+    from kvira_space_bot_src.spreadsheets.memberships import Membership, Lang
     from kvira_space_bot_src.redis_tools import TelegramUser
 
     # Only do this tests if GOOGLE_KEY_FILE_PATH is set

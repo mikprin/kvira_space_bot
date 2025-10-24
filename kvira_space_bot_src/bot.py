@@ -28,15 +28,14 @@ from kvira_space_bot_src.redis_tools import (
     save_json_to_redis,
     TEXT_SAVED_KEY
 )
-from kvira_space_bot_src.spreadsheets.api import (
-    Lang,
+from kvira_space_bot_src.spreadsheets.data import Lang
+from kvira_space_bot_src.spreadsheets.memberships import (
     find_working_membership,
-    get_all_user_data,
     punch_user_day,
     split_punch_string,
-    get_all_text_json,
     activate_membership,
 )
+from kvira_space_bot_src.spreadsheets.messages import get_all_text_json
 
 table_push_lock = Lock()
 

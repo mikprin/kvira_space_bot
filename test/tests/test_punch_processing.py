@@ -1,6 +1,6 @@
 import unittest
 
-from kvira_space_bot_src.spreadsheets.api import split_punch_string
+from kvira_space_bot_src.spreadsheets.memberships import split_punch_string
 
 class TestProcessPunchesFromString(unittest.TestCase):
     
