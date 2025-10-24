@@ -9,7 +9,6 @@ WORKDIR /
 
 RUN apt-get update && apt-get install -y \
     build-essential \
-    software-properties-common \
     && rm -rf /var/lib/apt/lists/* &&\
     apt-get clean
 # Copy the requirements.txt file to the container before copying the rest of the code
