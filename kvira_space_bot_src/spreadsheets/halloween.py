@@ -29,8 +29,18 @@ def ensure_and_get_user(name: str) -> Participant | None:
     return user
 
 
-def add_clue(username: str, clue: str) -> bool:
-    return False
+def add_clue(user: Participant, clue: str) -> bool:
+    sheet = get_sheet(TEXTS_SHEET)
+    clue_list = get_cell_stripped(user.row, 2, sheet)
+    clues = split_by_coma(clue_list)
+    if clue in clues:
+        return False
+    if not clue_list:
+        sheet.update_cell(user.row, 2, clue)
+    else:
+        sheet.update_cell(user.row, 2, f"{clue_list}, {clue}")
+    # TODO: handle exception
+    return True
 
 
 def next_empty_row():
