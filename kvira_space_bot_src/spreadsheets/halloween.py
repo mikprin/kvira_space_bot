@@ -22,13 +22,15 @@ class Participant:
         return [CRYPTIDS[clue] for clue in self.clues]
 
 
-def ensure_user_added(name: str):
-    if not get_user(name):
-        add_user(name)
+def ensure_and_get_user(name: str) -> Participant | None:
+    user = get_user(name)
+    if not user:
+        return add_user(name)
+    return user
 
 
-def handle_clue(username: str, clue: str):
-    pass
+def add_clue(username: str, clue: str) -> bool:
+    return False
 
 
 def next_empty_row():
@@ -70,15 +72,16 @@ def get_cell_stripped(row, column, sheet):
     return value.strip()
 
 
-def add_user(user: str):
+def add_user(name: str) -> Participant | None:
     try:
-        return add_user_(user)
+        return add_user_(name)
     except Exception as e:
-        logging.error(f"Error while adding user with row id {user}: {e}")
-        return False
+        logging.error(f"Error while adding user with row id {name}: {e}")
+        return None
 
 
-def add_user_(user: str):
+def add_user_(name: str) -> Participant:
     sheet = get_sheet(TEXTS_SHEET)
     row = next_empty_row()
-    sheet.update_cell(row, 1, user)
+    sheet.update_cell(row, 1, name)
+    return Participant(row, name, [])

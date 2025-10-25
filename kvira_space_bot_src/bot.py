@@ -33,7 +33,7 @@ from kvira_space_bot_src.redis_tools import (
     TEXT_SAVED_KEY
 )
 from kvira_space_bot_src.spreadsheets.data import Lang, split_by_coma
-from kvira_space_bot_src.spreadsheets.halloween import CRYPTIDS, handle_clue, ensure_user_added
+from kvira_space_bot_src.spreadsheets.halloween import CRYPTIDS, ensure_and_get_user, add_clue
 from kvira_space_bot_src.spreadsheets.memberships import (
     find_working_membership,
     punch_user_day,
@@ -349,17 +349,23 @@ async def handle_quest_mode_off(message: Message, state: FSMContext):
 
 async def handle_quest_clue(message: Message):
     name = message.chat.username
-    ensure_user_added(name)
+    user = ensure_and_get_user(name)
     if not message.text:
-        # redundant, add wrong lang handling
-        await reply_to_clue(message, f"Invalid clue.")
+        # redundant
+        # TODO: add bonus cryptid
+        await reply_to_clue(message, f"Invalid clue. How have you managed to do that?")
+    if not user:
+        await reply_to_clue(message, f"Invalid user: {user}. Wtf?")
     else:
         clue = message.text.strip().lower()
         if clue not in CRYPTIDS.keys():
+            # TODO: check the clue language
             await reply_to_clue(message, f"Clue '{clue}' don't exist")
         else:
-            handle_clue(name, clue)
-            await reply_to_clue(message, f"Your cryptid is {CRYPTIDS[clue]}, dear {name}")
+            if add_clue(user, clue):
+                await reply_to_clue(message, f"You've got {CRYPTIDS[clue]}, congratulations!")
+            else:
+                await reply_to_clue(message, f"You've already got {CRYPTIDS[clue]}")
 
 
 async def reply_to_clue(message: Message, reply: str):
