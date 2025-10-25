@@ -29,7 +29,17 @@ def next_empty_row():
             return row
 
 
-def get_user(row: int) -> Participant:
+def get_user(name: str) -> Participant | None:
+    sheet = get_sheet(TEXTS_SHEET)
+    for row in itertools.count(1):
+        value = sheet.cell(row, 1).value.strip()
+        if not value:
+            return None
+        if value == name:
+            return get_user_by_row(row)
+
+
+def get_user_by_row(row: int) -> Participant:
     sheet = get_sheet(TEXTS_SHEET)
     name = sheet.cell(row, 1).strip()
     if not name:
