@@ -202,6 +202,7 @@ class TelegramApiBot:
             StateFilter(UserStates.main_menu),
             F.text.in_(BUTTONS["quest_mode"].values())
         )
+        # TODO: it shows with the wrong state
         self._dp.message.register(
             handle_quest_mode_off,
             StateFilter(UserStates.quest_mode),
@@ -347,17 +348,20 @@ async def handle_quest_mode_off(message: Message, state: FSMContext):
 
 
 async def handle_quest_clue(message: Message):
-    user = get_user(message)
     if not message.text:
-        # redundant
-        await message.answer(
-            "empty clue",
-            reply_markup=get_keyboard(user.user_id, QUEST_BUTTON_LAYOUT),
-        )
+        # redundant, add wrong lang handling
+        await reply_to_clue(message, f"Invalid cue.")
     else:
+        clue = message.text.strip().lower()
+        if clue not in CRYPTIDS.keys():
+            await reply_to_clue(message, f"Clue '{clue}' don't exist")
+        else:
+            await reply_to_clue(message, f"Your cryptid is {CRYPTIDS[clue]}")
 
-        reply = "Nice clue" if message.text in CRYPTIDS else "Not a clue"
-        await message.answer(
-            reply,
-            reply_markup=get_keyboard(user.user_id, QUEST_BUTTON_LAYOUT),
-        )
+
+async def reply_to_clue(message: Message, reply: str):
+    user = get_user(message)
+    await message.answer(
+        reply,
+        reply_markup=get_keyboard(user.user_id, QUEST_BUTTON_LAYOUT),
+    )
