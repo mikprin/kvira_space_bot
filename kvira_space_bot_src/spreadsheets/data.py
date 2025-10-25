@@ -77,3 +77,7 @@ def get_sheet(name):
             sheet = worksheet
             break
     return sheet
+
+
+def split_by_coma(line: str) -> [str]:
+    return [entry.strip() for entry in line.split(',') if entry.strip()]

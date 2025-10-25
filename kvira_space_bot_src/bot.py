@@ -32,12 +32,11 @@ from kvira_space_bot_src.redis_tools import (
     save_json_to_redis,
     TEXT_SAVED_KEY
 )
-from kvira_space_bot_src.spreadsheets.data import Lang
+from kvira_space_bot_src.spreadsheets.data import Lang, split_by_coma
 from kvira_space_bot_src.spreadsheets.halloween import CRYPTIDS
 from kvira_space_bot_src.spreadsheets.memberships import (
     find_working_membership,
     punch_user_day,
-    split_punch_string,
     activate_membership,
 )
 from kvira_space_bot_src.spreadsheets.messages import get_all_text_json
@@ -294,7 +293,7 @@ class TelegramApiBot:
             try:
                 # If last punch was today, do nothing
                 if len(membership.membership_data['punches']) > 0:
-                    last_punch = split_punch_string(membership.membership_data['punches'])[-1]
+                    last_punch = split_by_coma(membership.membership_data['punches'])[-1]
                 else:
                     last_punch = None
                 today = current_date.strftime('%d.%m.%Y')
@@ -350,11 +349,13 @@ async def handle_quest_mode_off(message: Message, state: FSMContext):
 async def handle_quest_clue(message: Message):
     user = get_user(message)
     if not message.text:
+        # redundant
         await message.answer(
             "empty clue",
             reply_markup=get_keyboard(user.user_id, QUEST_BUTTON_LAYOUT),
         )
     else:
+
         reply = "Nice clue" if message.text in CRYPTIDS else "Not a clue"
         await message.answer(
             reply,

@@ -5,19 +5,10 @@ from kvira_space_bot_src.spreadsheets.data import (UserPassType,
                                                    ValidationResult,
                                                    DateStorageError,
                                                    Membership,
-                                                   get_sheet
+                                                   get_sheet, split_by_coma
                                                    )
 
 USERS_SHEET = 'Memberships-bot'
-
-
-def split_punch_string(punches: str) -> list:
-    """
-    Process the punches in form of string e.g. "6.06.2024, 7.06.2024"
-    and return a list of punches e.g. ['6.06.2024', '7.06.2024']
-    """
-    punches_list = punches.strip().split(',')
-    return [punch.strip() for punch in punches_list if punch.strip()]
 
 
 def get_all_user_data() -> pd.DataFrame:
@@ -97,7 +88,7 @@ def find_working_membership(username, current_date: str | None = None, df: pd.Da
                 if current_date < expiration_date:
                     # This means that row is valid in 30 days period
                     # Now lets check if user has any punches
-                    punches = [punch.strip() for punch in row['punches'].split(',') if punch.strip()]
+                    punches = split_by_coma(row)
                     if len(punches) < UserPassType.get_days_count(row['pass_type']):
                         membership_data = row.to_dict()
                         return Membership(row_id=index, activated=True, errors=errors, membership_data=membership_data)
@@ -158,7 +149,7 @@ def get_days_left_from_membership(membership: Membership) -> int:
     """Get days left from the WorkingMembership object.
     """
     pass_type = membership.membership_data['pass_type']
-    punches = split_punch_string(membership.membership_data['punches'])
+    punches = split_by_coma(membership.membership_data['punches'])
     return UserPassType.get_days_count(pass_type) - len(punches)
 
 
