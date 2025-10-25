@@ -22,17 +22,27 @@ class Participant:
         return [CRYPTIDS[clue] for clue in self.clues]
 
 
+def ensure_user_added(name: str):
+    if not get_user(name):
+        add_user(name)
+
+
+def handle_clue(username: str, clue: str):
+    pass
+
+
 def next_empty_row():
     sheet = get_sheet(TEXTS_SHEET)
     for row in itertools.count(1):
-        if not sheet.cell(row, 1).value.strip:
+        name = get_cell_stripped(row, 1, sheet)
+        if not name:
             return row
 
 
 def get_user(name: str) -> Participant | None:
     sheet = get_sheet(TEXTS_SHEET)
     for row in itertools.count(1):
-        value = sheet.cell(row, 1).value.strip()
+        value = get_cell_stripped(row, 1, sheet)
         if not value:
             return None
         if value == name:
@@ -41,11 +51,11 @@ def get_user(name: str) -> Participant | None:
 
 def get_user_by_row(row: int) -> Participant:
     sheet = get_sheet(TEXTS_SHEET)
-    name = sheet.cell(row, 1).strip()
+    name = get_cell_stripped(row, 1, sheet)
     if not name:
         # error
         pass
-    clues = split_by_coma(sheet.cell(row, 2))
+    clues = split_by_coma(get_cell_stripped(row, 2, sheet))
     for clue in clues:
         if clue not in CRYPTIDS.keys():
             # error
@@ -53,11 +63,18 @@ def get_user_by_row(row: int) -> Participant:
     return Participant(row, name, clues)
 
 
+def get_cell_stripped(row, column, sheet):
+    value = sheet.cell(row, column).value
+    if not value or not value.strip():
+        return None
+    return value.strip()
+
+
 def add_user(user: str):
     try:
         return add_user_(user)
     except Exception as e:
-        logging.error(f"Error while punching the user with row id {user}: {e}")
+        logging.error(f"Error while adding user with row id {user}: {e}")
         return False
 
 

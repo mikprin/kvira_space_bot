@@ -33,7 +33,7 @@ from kvira_space_bot_src.redis_tools import (
     TEXT_SAVED_KEY
 )
 from kvira_space_bot_src.spreadsheets.data import Lang, split_by_coma
-from kvira_space_bot_src.spreadsheets.halloween import CRYPTIDS
+from kvira_space_bot_src.spreadsheets.halloween import CRYPTIDS, handle_clue, ensure_user_added
 from kvira_space_bot_src.spreadsheets.memberships import (
     find_working_membership,
     punch_user_day,
@@ -348,15 +348,18 @@ async def handle_quest_mode_off(message: Message, state: FSMContext):
 
 
 async def handle_quest_clue(message: Message):
+    name = message.chat.username
+    ensure_user_added(name)
     if not message.text:
         # redundant, add wrong lang handling
-        await reply_to_clue(message, f"Invalid cue.")
+        await reply_to_clue(message, f"Invalid clue.")
     else:
         clue = message.text.strip().lower()
         if clue not in CRYPTIDS.keys():
             await reply_to_clue(message, f"Clue '{clue}' don't exist")
         else:
-            await reply_to_clue(message, f"Your cryptid is {CRYPTIDS[clue]}")
+            handle_clue(name, clue)
+            await reply_to_clue(message, f"Your cryptid is {CRYPTIDS[clue]}, dear {name}")
 
 
 async def reply_to_clue(message: Message, reply: str):
