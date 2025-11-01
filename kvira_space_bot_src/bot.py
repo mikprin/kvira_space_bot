@@ -353,21 +353,21 @@ async def handle_quest_clue(message: Message):
     if not message.text:
         # redundant
         # TODO: add bonus cryptid
-        await reply_to_clue(message, f"Invalid clue. How have you managed to do that?")
+        await reply_to_clue(message, f"Некорректное кодовое слово. Как?")
     if not user:
         await reply_to_clue(message, f"Invalid user: {user}. Wtf?")
     else:
         clue = message.text.strip().lower()
         if clue not in CLUES.keys():
             # TODO: check the clue language
-            await reply_to_clue(message, f"Clue '{clue}' don't exist")
+            await reply_to_clue(message, f"Вы ввели неправильное кодовое слово '{clue}'")
         else:
             cryptid = CLUES[clue]
             display_name = CRYPTID_NAMES[cryptid]
             if add_cryptid(user, cryptid):
-                await reply_to_clue(message, f"You've got {display_name}, congratulations!")
+                await reply_to_clue(message, f"Вы поймали криптида {display_name}, найдите человека с фиолетовым ирокезом, покажите ему это сообщение -- он выдаст вам стикерочек!")
             else:
-                await reply_to_clue(message, f"You've already got {display_name}")
+                await reply_to_clue(message, f"У вас уже есть {display_name}!")
 
 
 async def reply_to_clue(message: Message, reply: str):
