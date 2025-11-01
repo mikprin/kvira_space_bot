@@ -6,9 +6,26 @@ from kvira_space_bot_src.spreadsheets.data import get_sheet, split_by_coma
 
 TEXTS_SHEET = 'HalloweenQuest-bot'
 
-CRYPTIDS = {
-    "yeti": "Yeti",
-    "paklya": "Paklya",
+CLUES = {
+    "underneath": "Zaratan",
+    "mordax": "Inkanyamba",
+    "усы": "PopeLickMonster",
+    "diamond": "VoronezhGiant",
+    "kitchen": "Batsquatch",
+    "кухня": "Batsquatch",
+    "coquina": "Batsquatch",
+    "portret": "Kraken",
+    "щоциер3гпр": "Paklya",
+}
+
+CRYPTID_NAMES = {
+    "Zaratan": "Zaratan",
+    "Inkanyamba": "Inkanyamba",
+    "PopeLickMonster": "Pope Lick Monster",
+    "VoronezhGiant": "Voronezh Giant",
+    "Batsquatch": "Batsquatch",
+    "Kraken": "Kraken",
+    "Paklya": "Paklya",
 }
 
 
@@ -16,10 +33,7 @@ CRYPTIDS = {
 class Participant:
     row: int
     name: str
-    clues: [str]
-
-    def cryptids(self) -> [str]:
-        return [CRYPTIDS[clue] for clue in self.clues]
+    cryptids: [str]
 
 
 def ensure_and_get_user(name: str) -> Participant | None:
@@ -29,16 +43,16 @@ def ensure_and_get_user(name: str) -> Participant | None:
     return user
 
 
-def add_clue(user: Participant, clue: str) -> bool:
+def add_cryptid(user: Participant, cryptid: str) -> bool:
     sheet = get_sheet(TEXTS_SHEET)
-    clue_list = get_cell_stripped(user.row, 2, sheet)
-    clues = split_by_coma(clue_list)
-    if clue in clues:
+    cryptid_list = get_cell_stripped(user.row, 2, sheet)
+    cryptids = split_by_coma(cryptid_list)
+    if cryptid in cryptids:
         return False
-    if not clue_list:
-        sheet.update_cell(user.row, 2, clue)
+    if not cryptid_list:
+        sheet.update_cell(user.row, 2, cryptid)
     else:
-        sheet.update_cell(user.row, 2, f"{clue_list}, {clue}")
+        sheet.update_cell(user.row, 2, f"{cryptid_list}, {cryptid}")
     # TODO: handle exception
     return True
 
@@ -67,12 +81,12 @@ def get_user_by_row(row: int) -> Participant:
     if not name:
         # error
         pass
-    clues = split_by_coma(get_cell_stripped(row, 2, sheet))
-    for clue in clues:
-        if clue not in CRYPTIDS.keys():
+    cryptids = split_by_coma(get_cell_stripped(row, 2, sheet))
+    for cryptid in cryptids:
+        if cryptid not in CLUES.values():
             # error
             pass
-    return Participant(row, name, clues)
+    return Participant(row, name, cryptids)
 
 
 def get_cell_stripped(row, column, sheet):

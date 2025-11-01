@@ -33,7 +33,7 @@ from kvira_space_bot_src.redis_tools import (
     TEXT_SAVED_KEY
 )
 from kvira_space_bot_src.spreadsheets.data import Lang, split_by_coma
-from kvira_space_bot_src.spreadsheets.halloween import CRYPTIDS, ensure_and_get_user, add_clue
+from kvira_space_bot_src.spreadsheets.halloween import CLUES, ensure_and_get_user, add_cryptid, CRYPTID_NAMES
 from kvira_space_bot_src.spreadsheets.memberships import (
     find_working_membership,
     punch_user_day,
@@ -358,14 +358,16 @@ async def handle_quest_clue(message: Message):
         await reply_to_clue(message, f"Invalid user: {user}. Wtf?")
     else:
         clue = message.text.strip().lower()
-        if clue not in CRYPTIDS.keys():
+        if clue not in CLUES.keys():
             # TODO: check the clue language
             await reply_to_clue(message, f"Clue '{clue}' don't exist")
         else:
-            if add_clue(user, clue):
-                await reply_to_clue(message, f"You've got {CRYPTIDS[clue]}, congratulations!")
+            cryptid = CLUES[clue]
+            display_name = CRYPTID_NAMES[cryptid]
+            if add_cryptid(user, cryptid):
+                await reply_to_clue(message, f"You've got {display_name}, congratulations!")
             else:
-                await reply_to_clue(message, f"You've already got {CRYPTIDS[clue]}")
+                await reply_to_clue(message, f"You've already got {display_name}")
 
 
 async def reply_to_clue(message: Message, reply: str):
