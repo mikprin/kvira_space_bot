@@ -93,7 +93,7 @@ def find_working_membership(username, current_date: str | None = None, df: pd.Da
     #                    if len(punches) < UserPassType.get_days_count(row['pass_type']):
     #                        membership_data = row.to_dict()
     #                        return Membership(row_id=index, activated=True, errors=errors, membership_data=membership_data)
-    return Membership(row_id=None, activated=None, errors=errors, membership_data=None)
+    return Membership(row_id=None, activated=None, errors=[], membership_data=None)
 
 
 def activate_membership(membership: Membership, current_date: str | None = None) -> bool:
