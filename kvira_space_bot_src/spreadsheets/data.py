@@ -80,7 +80,7 @@ def get_sheet(name):
 
 
 def split_by_coma(line: str) -> [str]:
-    if not line:
+    if line is None or len(line) == 0:
         return []
     # TODO: handle last entry empty
     return [entry.strip() for entry in line.split(',') if entry and entry.strip()]
