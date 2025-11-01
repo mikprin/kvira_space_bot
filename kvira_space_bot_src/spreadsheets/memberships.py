@@ -68,30 +68,31 @@ def find_working_membership(username, current_date: str | None = None, df: pd.Da
         return Membership()
 
     errors = list()
-    for index, row in user_data.iterrows():
-        # Current date is compared with expiration date = activation date + 30 days
-        # If current date is bigger than activation date + 30 days - pass
-        # If current date is less than activation date + 30 days - return row
-        row_validation = validate_membership_row(row)
-        if not row_validation.result:
-            errors.extend(row_validation.validation_errors)
-            logging.error(f"Error(s) {row_validation.validation_errors} encountered during validation of {username} entry")
-        else:
-            activation_date = row['date_activated']
-            print(f"Activation date: '{activation_date}', ({activation_date != ''})")
-            if activation_date is None or not activation_date.strip():
-                # Pass has not been activated yet! But is valid
-                return Membership(row_id=index, activated=False, errors=errors, membership_data=row.to_dict())
+    for index, rows in user_data.iterrows():
+        for row in rows:
+            # Current date is compared with expiration date = activation date + 30 days
+            # If current date is bigger than activation date + 30 days - pass
+            # If current date is less than activation date + 30 days - return row
+            row_validation = validate_membership_row(row)
+            if not row_validation.result:
+                errors.extend(row_validation.validation_errors)
+                logging.error(f"Error(s) {row_validation.validation_errors} encountered during validation of {username} entry")
             else:
-                activation_date = datetime.strptime(activation_date, '%d.%m.%Y')
-                expiration_date = activation_date + timedelta(days=30)
-                if current_date < expiration_date:
-                    # This means that row is valid in 30 days period
-                    # Now lets check if user has any punches
-                    punches = split_by_coma(row)
-                    if len(punches) < UserPassType.get_days_count(row['pass_type']):
-                        membership_data = row.to_dict()
-                        return Membership(row_id=index, activated=True, errors=errors, membership_data=membership_data)
+                activation_date = row['date_activated']
+                print(f"Activation date: '{activation_date}', ({activation_date != ''})")
+                if activation_date is None or not activation_date.strip():
+                    # Pass has not been activated yet! But is valid
+                    return Membership(row_id=index, activated=False, errors=errors, membership_data=row.to_dict())
+                else:
+                    activation_date = datetime.strptime(activation_date, '%d.%m.%Y')
+                    expiration_date = activation_date + timedelta(days=30)
+                    if current_date < expiration_date:
+                        # This means that row is valid in 30 days period
+                        # Now lets check if user has any punches
+                        punches = split_by_coma(row)
+                        if len(punches) < UserPassType.get_days_count(row['pass_type']):
+                            membership_data = row.to_dict()
+                            return Membership(row_id=index, activated=True, errors=errors, membership_data=membership_data)
     return Membership(row_id=None, activated=None, errors=errors, membership_data=None)
 
 
