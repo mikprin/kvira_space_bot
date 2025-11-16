@@ -2,17 +2,14 @@ import asyncio
 import logging
 from asyncio import Lock
 from datetime import datetime
-from typing import Any, Dict, Callable, Awaitable
 
-from aiogram import Bot, Dispatcher, BaseMiddleware, types, F
+import pandas as pd
+from aiogram import Bot, Dispatcher, types, F
 from aiogram.enums import ParseMode
 from aiogram.filters import BaseFilter
 from aiogram.filters import Command
 from aiogram.filters import CommandStart
-from aiogram.filters import StateFilter
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import Message, Update
+from aiogram.types import Message
 from aiogram.types.keyboard_button import KeyboardButton
 
 from kvira_space_bot_src.messaging import (
@@ -32,22 +29,19 @@ from kvira_space_bot_src.redis_tools import (
     save_json_to_redis,
     TEXT_SAVED_KEY
 )
-from kvira_space_bot_src.spreadsheets.data import Lang, split_by_coma
-from kvira_space_bot_src.spreadsheets.halloween import CLUES, ensure_and_get_user, add_cryptid, CRYPTID_NAMES
-from kvira_space_bot_src.spreadsheets.memberships import (
+from kvira_space_bot_src.spreadsheets.api import (
+    Lang,
     find_working_membership,
+    get_user_data_pandas,
     punch_user_day,
+    process_punches_from_string,
+    get_all_text_json,
     activate_membership,
 )
-from kvira_space_bot_src.spreadsheets.messages import get_all_text_json
 
 table_push_lock = Lock()
 
 BUTTONS = {
-  "quest_mode": {
-    Lang.Rus: "Квест на Хэллоуин",
-    Lang.Eng: "Halloween Quest",
-  },
   "check_membership": {
     Lang.Rus: "Проверить абонемент",
     Lang.Eng: "Check membership",
@@ -64,20 +58,11 @@ BUTTONS = {
     Lang.Rus: "🌐 Eng/Ru",
     Lang.Eng: "🌐 Eng/Ru",
   },
-  "return": {
-    Lang.Rus: "Назад",
-    Lang.Eng: "Return",
-  },
 }
-TOP_LEVEL_BUTTON_LAYOUT = ["check_membership", "check_in", "calendar", "quest_mode", "lang"]
-QUEST_BUTTON_LAYOUT = ["return", "lang"]
 ADMIN_LOG_MSG_TXT = "Kvira bot admin update:"
 # (0 = Monday, 1 = Tuesday, ..., 2 = Wednesday, ..., 6 = Sunday)
 COMMUNITY_DAY = 2
 
-class UserStates(StatesGroup):
-    main_menu = State()
-    quest_mode = State()
 
 class IsAdmin(BaseFilter):
     """Check if the user is an admin. Works with user ids and usernames.
@@ -93,34 +78,22 @@ class IsAdmin(BaseFilter):
         return is_admin
 
 
-class StateAutoSetMiddleware(BaseMiddleware):
-    """
-    Выполняется до проверки обработчиков. Нужно для тех пользователей,
-    которые начали пользоваться ботом до того как был введен стейт.
-    """
-
-    async def __call__(
-            self,
-            handler: Callable[[Update, Dict[str, Any]], Awaitable[Any]],
-            event: Update,
-            data: Dict[str, Any]
-    ) -> Any:
-        state: FSMContext = data.get('state')
-        if state is not None:
-            current_fsm_state = await state.get_state()
-            if current_fsm_state is None:
-                await state.set_state(UserStates.main_menu)
-        return await handler(event, data)
-
-
-def get_keyboard(user_id, button_layout):
+def get_keyboard(user_id):
     """Get inline keyboard"""
 
     user = get_user_from_redis(user_id)
-    lang = Lang.Rus if user is None else user.lang
+
+    lang = Lang.Rus
+    if user is not None:
+        lang = user.lang
 
     keyboard_buttons = [
-        [KeyboardButton(text=BUTTONS[name][lang]) for name in button_layout]
+        [
+            KeyboardButton(text=BUTTONS["check_membership"][lang]),
+            KeyboardButton(text=BUTTONS["check_in"][lang]),
+            KeyboardButton(text=BUTTONS["calendar"][lang]),
+            KeyboardButton(text=BUTTONS["lang"][lang]),
+        ]
     ]
     keyboard = types.ReplyKeyboardMarkup(
         keyboard=keyboard_buttons,
@@ -130,10 +103,8 @@ def get_keyboard(user_id, button_layout):
     return keyboard
 
 
-def get_user(message: Message):
-    user_id = message.from_user.id
-    username = message.from_user.username
-    user = get_user_from_redis(str(user_id))
+def get_user(user_id, username):
+    user = get_user_from_redis(user_id)
     if user is None:
         user = TelegramUser(
             user_id=str(user_id),
@@ -160,7 +131,6 @@ class TelegramApiBot:
 
         self._bot = Bot(token, parse_mode=ParseMode.HTML)
         self._dp = Dispatcher()
-        self._dp.update.outer_middleware.register(StateAutoSetMiddleware())
         self.register_handlers()
         logging.info(f"Initiated bot with token")
 
@@ -180,57 +150,28 @@ class TelegramApiBot:
         Register all dispatcher handlers.
         """
         self._dp.message.register(self.handle_start, CommandStart())
-        self._dp.message.register(handle_admin_register, Command("admin"), IsAdmin(self._admin_list))
+        self._dp.message.register(self.handle_admin_register, Command("admin"), IsAdmin(self._admin_list))
         self._dp.message.register(self.handle_lang_change, F.text.in_(BUTTONS["lang"].values()))
-        self._dp.message.register(
-            self.handle_check_membership,
-            StateFilter(UserStates.main_menu),
-            F.text.in_(BUTTONS["check_membership"].values())
-        )
-        self._dp.message.register(
-            self.handle_calendar,
-            StateFilter(UserStates.main_menu),
-            F.text.in_(BUTTONS["calendar"].values())
-        )
-        self._dp.message.register(
-            self.handle_check_in,
-            StateFilter(UserStates.main_menu),
-            F.text.in_(BUTTONS["check_in"].values())
-        )
-        self._dp.message.register(
-            handle_quest_mode_on,
-            StateFilter(UserStates.main_menu),
-            F.text.in_(BUTTONS["quest_mode"].values())
-        )
-        # TODO: it shows with the wrong state
-        self._dp.message.register(
-            handle_quest_mode_off,
-            StateFilter(UserStates.quest_mode),
-            F.text.in_(BUTTONS["return"].values())
-        )
-        self._dp.message.register(
-            handle_quest_clue,
-            StateFilter(UserStates.quest_mode),
-        )
+        self._dp.message.register(self.handle_check_membership, F.text.in_(BUTTONS["check_membership"].values()))
+        self._dp.message.register(self.handle_calendar, F.text.in_(BUTTONS["calendar"].values()))
+        self._dp.message.register(self.handle_check_in, F.text.in_(BUTTONS["check_in"].values()))
 
     def run(self):
         asyncio.run(self._run_tasks())
 
-    async def handle_start(self, message: Message, state: FSMContext) -> None:
+    async def handle_start(self, message: Message) -> None:
         """
         This handler receives messages with `/start` command
         """
         init_redis()
-        user = get_user(message)
+        user = get_user(message.from_user.id, message.from_user.username)
 
-        membership = find_working_membership(user.username)
+        users_memberships: pd.DataFrame = get_user_data_pandas()
+        membership = find_working_membership(user.username, users_memberships)
         # Process error messages
         if len(membership.errors) > 0:
             for error in membership.errors:
-                await send_message_to_admins(
-                    f"{ADMIN_LOG_MSG_TXT} Error in validation for user {user.username}: {error}",
-                    bot=self._bot
-                )
+                await send_message_to_admins(f"{ADMIN_LOG_MSG_TXT} Error in validation for user {user.username}: {error}", bot=self._bot)
         hello_msg = get_message_for_user('hello_msg', user.lang)
         messages = [hello_msg]
         messages.extend(check_membership(user, membership))
@@ -239,11 +180,11 @@ class TelegramApiBot:
         if current_date.weekday() == COMMUNITY_DAY:
             messages.append(get_message_for_user('community_day', user.lang))
         logging.info(f"Messages for user {user.username}: {messages}")
-        await state.set_state(UserStates.main_menu)
-        await message.answer("\n".join(messages), reply_markup=get_keyboard(user.user_id, TOP_LEVEL_BUTTON_LAYOUT))
+        await message.answer("\n".join(messages), reply_markup=get_keyboard(user.user_id))
 
+    # Process the user's choice. Language change is handled here.
     async def handle_lang_change(self, message: Message):
-        user = get_user(message)
+        user = get_user(message.from_user.id, message.from_user.username)
         
         if user.lang == Lang.Rus:
             user.lang = Lang.Eng
@@ -251,30 +192,27 @@ class TelegramApiBot:
             user.lang = Lang.Rus
     
         add_user_to_redis(user) 
-        await message.answer(
-            get_message_for_user('lang_changed', user.lang),
-            reply_markup=get_keyboard(user.user_id, TOP_LEVEL_BUTTON_LAYOUT),
-        )
+        await message.answer(get_message_for_user('lang_changed', user.lang), reply_markup=get_keyboard(user.user_id))
 
     async def handle_check_membership(self, message: Message):
-        user = get_user(message)
-        membership = find_working_membership(user.username)
+        user = get_user(message.from_user.id, message.from_user.username)
+        users_memberships: pd.DataFrame = get_user_data_pandas()
+        membership = find_working_membership(user.username, users_memberships)
         messages = check_membership(user, membership)
-        await message.answer("\n".join(messages), reply_markup=get_keyboard(user.user_id, TOP_LEVEL_BUTTON_LAYOUT))
+        await message.answer("\n".join(messages), reply_markup=get_keyboard(user.user_id))
 
     async def handle_calendar(self, message: Message):
-        user = get_user(message)
-        await message.answer(
-            get_message_for_user('calendar', user.lang),
-            reply_markup=get_keyboard(user.user_id, TOP_LEVEL_BUTTON_LAYOUT)
-        )
+        user = get_user(message.from_user.id, message.from_user.username)
+        await message.answer(get_message_for_user('calendar', user.lang), reply_markup=get_keyboard(user.user_id))
 
     async def handle_check_in(self, message: Message):
         # Get the current date
         current_date = datetime.now()
         
-        user = get_user(message)
-        membership = find_working_membership(user.username)
+        user = get_user(message.from_user.id, message.from_user.username)
+        msg = None
+        users_memberships: pd.DataFrame = get_user_data_pandas()
+        membership = find_working_membership(user.username, users_memberships)
         if current_date.weekday() != COMMUNITY_DAY:
             # Activate the pass if it is not activated if it is NOT a community day
             if membership.activated is False:
@@ -294,7 +232,7 @@ class TelegramApiBot:
             try:
                 # If last punch was today, do nothing
                 if len(membership.membership_data['punches']) > 0:
-                    last_punch = split_by_coma(membership.membership_data['punches'])[-1]
+                    last_punch = process_punches_from_string(membership.membership_data['punches'])[-1]
                 else:
                     last_punch = None
                 today = current_date.strftime('%d.%m.%Y')
@@ -312,67 +250,13 @@ class TelegramApiBot:
                         msg = "error_punching"
             finally:
                 table_push_lock.release()
-        await message.answer(
-            get_message_for_user(msg, user.lang),
-            reply_markup=get_keyboard(user.user_id, TOP_LEVEL_BUTTON_LAYOUT)
-        )
+        await message.answer(get_message_for_user(msg, user.lang), reply_markup=get_keyboard(user.user_id))
 
-
-async def handle_admin_register(message: Message):
-    admin_chats = read_chats_from_redis_list(ADMIN_CHATS_KEY)
-    chat_id = str(message.chat.id)
-    if chat_id not in admin_chats:
-        add_chat_to_redis_list(chat_id, ADMIN_CHATS_KEY)
-        admin_chats.append(chat_id)
-        await message.answer(f"Chat {message.chat.id} added to the admin list!")
-    else:
-        await message.answer("You are already in admin list!")
-
-
-async def handle_quest_mode_on(message: Message, state: FSMContext):
-    user = get_user(message)
-    await state.set_state(UserStates.quest_mode)
-    await message.answer(
-        "quest mode",
-        reply_markup=get_keyboard(user.user_id, QUEST_BUTTON_LAYOUT),
-    )
-
-
-async def handle_quest_mode_off(message: Message, state: FSMContext):
-    user = get_user(message)
-    await state.set_state(UserStates.main_menu)
-    await message.answer(
-        "main mode",
-        reply_markup=get_keyboard(user.user_id, TOP_LEVEL_BUTTON_LAYOUT),
-    )
-
-
-async def handle_quest_clue(message: Message):
-    name = message.chat.username
-    user = ensure_and_get_user(name)
-    if not message.text:
-        # redundant
-        # TODO: add bonus cryptid
-        await reply_to_clue(message, f"Некорректное кодовое слово. Как?")
-    if not user:
-        await reply_to_clue(message, f"Invalid user: {user}. Wtf?")
-    else:
-        clue = message.text.strip().lower()
-        if clue not in CLUES.keys():
-            # TODO: check the clue language
-            await reply_to_clue(message, f"Вы ввели неправильное кодовое слово '{clue}'")
+    async def handle_admin_register(self, message: Message):
+        admin_chats = read_chats_from_redis_list(ADMIN_CHATS_KEY)
+        if message.chat.id not in admin_chats:
+            add_chat_to_redis_list(message.chat.id, ADMIN_CHATS_KEY)
+            admin_chats.append(message.chat.id)
+            await message.answer(f"Chat {message.chat.id} added to the admin list!")
         else:
-            cryptid = CLUES[clue]
-            display_name = CRYPTID_NAMES[cryptid]
-            if add_cryptid(user, cryptid):
-                await reply_to_clue(message, f"Вы поймали криптида {display_name}, найдите человека с фиолетовым ирокезом, покажите ему это сообщение -- он выдаст вам стикерочек!")
-            else:
-                await reply_to_clue(message, f"У вас уже есть {display_name}!")
-
-
-async def reply_to_clue(message: Message, reply: str):
-    user = get_user(message)
-    await message.answer(
-        reply,
-        reply_markup=get_keyboard(user.user_id, QUEST_BUTTON_LAYOUT),
-    )
+            await message.answer("You are already in admin list!")
