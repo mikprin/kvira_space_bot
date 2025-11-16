@@ -16,11 +16,6 @@ CLUES = {
     "coquina": "Batsquatch",
     "portret": "Kraken",
     "щоциер3гпр": "Paklya",
-    "451": "JerseyDevil",
-    "брат": "Chupacabra",
-    "comfy": "Mothman",
-    "underwater friend": "Nessie",
-    "213": "LovelandFrogman",
 }
 
 CRYPTID_NAMES = {
@@ -31,11 +26,6 @@ CRYPTID_NAMES = {
     "Batsquatch": "Batsquatch",
     "Kraken": "Kraken",
     "Paklya": "Paklya",
-    "JerseyDevil": "Jersey Devil",
-    "Chupacabra": "Chupacabra",
-    "Mothman": "Mothman",
-    "Nessie": "Nessie",
-    "LovelandFrogman": "Loveland Frogman",
 }
 
 
