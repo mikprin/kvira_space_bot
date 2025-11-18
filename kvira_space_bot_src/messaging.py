@@ -10,9 +10,9 @@ from kvira_space_bot_src.redis_tools import (
     TEXT_SAVED_KEY,
     TelegramUser,
 )
-from kvira_space_bot_src.spreadsheets.data import Lang
-from kvira_space_bot_src.spreadsheets.memberships import (
-    Membership,
+from kvira_space_bot_src.spreadsheets.api import (
+    Lang,
+    WorkingMembership,
     get_days_left_from_membership,
 )
 from datetime import datetime, timedelta
@@ -23,7 +23,7 @@ def join_messages(messages: list[str]) -> str:
     """
     return '\n'.join(messages)
 
-def check_membership(user: TelegramUser, membership: Membership) -> list[str]:
+def check_membership(user: TelegramUser, membership: WorkingMembership) -> list[str]:
     """Check the membership of the user and return list of messages to send.
     """
     messages = list()
